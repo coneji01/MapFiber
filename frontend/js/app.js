@@ -219,6 +219,9 @@ async function injectFusion(connIn, fiberIn, connOut, fiberOut, fusionId, lossDb
   if (infoEl) {
     infoEl.innerHTML = infoEl.innerHTML.replace(/(Empalmes:\s*)(\d+)/, (m, p1) => p1 + ((parseInt(document.querySelectorAll('.fl[data-fusion]').length) || 1)));
   }
+
+  // ⭐ Refresh completo de potencia desde el servidor para sync todos los indicadores
+  refreshPowerDotsFromServer();
 }
 
 // === SURGICAL SPLICE INSERT (cable ↔ splitter, sin re-render) ===
@@ -410,6 +413,9 @@ function injectSplice(cableConnId, cableFiber, splitterMfId, splitterPort, splic
   if (infoEl) {
     infoEl.innerHTML = infoEl.innerHTML.replace(/(Splices:\s*)(\d+)/, (m, p1) => p1 + ((parseInt(document.querySelectorAll('.fl[data-splice]').length) || 1)));
   }
+
+  // ⭐ Refresh completo de potencia desde el servidor para sync todos los indicadores
+  refreshPowerDotsFromServer();
 }
 
 // === POST-RENDER: corregir gradientes de fusiones y splices segun posicion real de los dots ===
