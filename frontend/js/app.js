@@ -5862,7 +5862,7 @@ async function openMangaVisualizer(mangaId, entityType) {
       var cableIdOut = pointOut ? pointOut.cable_id : null;
       var mismoCable = cableIdIn && cableIdOut && cableIdIn === cableIdOut;
       
-      // Dirección del flujo (activo-pulse):
+      // Dirección del data-flow:
       // 1. _cablePairLeft nos dice QUÉ lado es el ORIGEN (izquierda)
       // 2. Si connIn es LEFT → flujo de connIn a connOut
       // 3. Si connOut es LEFT → flujo de connOut a connIn
@@ -5971,9 +5971,8 @@ async function openMangaVisualizer(mangaId, entityType) {
         else { powerTextClass = 'power-text-bad'; }
       }
       
-      // Fibras con potencia: linea SOLIDA con brillo (active-pulse)
-      // Fibras sin potencia: linea normal sin brillo
-      const activeClass = hasActivePower ? 'active-pulse' : '';
+      // Only add glow if fiber has active power (no dash animation - dots pulse instead)
+      const activeClass = hasActivePower ? 'data-flow' : '';
       const lineOpacity = hasActivePower ? '0.85' : '0.5';
       const fusionIdAttr = `data-fusion="${fusion.id}"`;
       const fiberInAttr = `data-fiber-in="${srcFiberNum}"`;
@@ -6311,7 +6310,7 @@ async function openMangaVisualizer(mangaId, entityType) {
         
         const cpOff = (toX - fromX) * 0.3;
         const hasPower = mf.active_power && mf.power_level !== null;
-        const activeClass = hasPower ? 'active-pulse' : '';
+        const activeClass = hasPower ? 'data-flow' : '';
         
         svgLines += `<path class="fl ${activeClass}" d="M ${fromX},${fromY} C ${fromX + cpOff},${fromY} ${toX - cpOff},${toY} ${toX},${toY}" 
           stroke="${strokeVal}" stroke-width="3.5" opacity="${hasPower ? '1' : '0.8'}" fill="none" 
@@ -6410,14 +6409,14 @@ async function openMangaVisualizer(mangaId, entityType) {
             }
           });
           
-          // 3. Pulse fusion lines — active-pulse (brillo, no dashed)
+          // 3. Pulse fusion lines — data-flow style (excluye splices de splitter)
           var fusionPathsIn = svgEl.querySelectorAll('.fl[data-fiber-in="' + hiloNum + '"][data-conn-in="' + connId + '"]:not([data-splice])');
           fusionPathsIn.forEach(function(p) {
-            p.classList.add('active-pulse');
+            p.classList.add('data-flow');
           });
           var fusionPathsOut = svgEl.querySelectorAll('.fl[data-fiber-out="' + hiloNum + '"][data-conn-out="' + connId + '"]:not([data-splice])');
           fusionPathsOut.forEach(function(p) {
-            p.classList.add('active-pulse');
+            p.classList.add('data-flow');
           });
         });
         
