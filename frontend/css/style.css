@@ -1501,4 +1501,4 @@ body {
 }
 
 
-#vis-svg.vis-reloading { opacity: 0.3; transition: opacity 0.15s ease; }
+#vis-svg { position: relative; } #vis-svg-wrap { position: relative; }

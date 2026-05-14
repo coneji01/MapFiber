@@ -128,15 +128,23 @@ async function injectFusion(connIn, fiberIn, connOut, fiberOut, fusionId, lossDb
     strokeVal = 'url(#' + gid + ')';
   }
 
-  // Detectar potencia: recordar QUE lado es la fuente OLT para usarlo al romper
+  // Detectar potencia y propagarla: si una fibra tiene power, la otra tambien (recien fusionada)
   const srcHasPower = srcDot.getAttribute('data-has-power') === 'true';
   const tgtHasPower = tgtDot.getAttribute('data-has-power') === 'true';
   const hasPower = srcHasPower || tgtHasPower;
-  // ⭐ NO propagar power al otro lado. Cada dot conserva su estado original.
-  // La fusion se encarga de mostrar el flujo con data-flow.
-  // Al romper la fusion, solo el lado fuente (OLT) debe retener potencia.
-  const oltSide = srcHasPower ? connIn : (tgtHasPower ? connOut : 'none');
-  
+  // Propagar power al dot que no lo tenga
+  if (hasPower) {
+    if (!srcHasPower) srcDot.setAttribute('data-has-power', 'true');
+    if (!tgtHasPower) tgtDot.setAttribute('data-has-power', 'true');
+    // Tambien marcar el jacket
+    [srcDot, tgtDot].forEach(function(d) {
+      var g = d.closest('.fiber-dot-group');
+      if (g) {
+        var j = g.querySelector('.fiber-jacket');
+        if (j) j.classList.add('fiber-powered');
+      }
+    });
+  }
   const pathClass = 'fl' + (hasPower ? ' data-flow' : '');
   const pathOpacity = hasPower ? '0.85' : '0.5';
 
@@ -150,7 +158,6 @@ async function injectFusion(connIn, fiberIn, connOut, fiberOut, fusionId, lossDb
   path.setAttribute('data-conn-in', connIn); path.setAttribute('data-conn-out', connOut);
   path.setAttribute('data-fiber-color-in', leftColor); path.setAttribute('data-fiber-color-out', rightColor);
   path.setAttribute('data-fiber-color', leftColor); path.setAttribute('data-active', hasPower ? 'true' : 'false');
-  path.setAttribute('data-olt-source', oltSide); // ⭐ para saber que lado conservar potencia al romper
   path.setAttribute('data-fusion-power', hasPower ? '9.4' : ''); path.setAttribute('data-fiber-name', firstIsLeft ? (tiaColorName(fiberIn) || '—') : (tiaColorName(fiberOut) || '—'));
   svgEl.appendChild(path);
 
@@ -3845,7 +3852,7 @@ async function openVisualizer(napId) {
     <button class="vis-inline-btn" style="background:#e94560;color:#fff;font-weight:bold;" onclick="showSetPowerDialogForNap(${napId})">⚡ Set Power</button>
   `;
   document.getElementById('vis-fibers').innerHTML = portsHTML;
-  document.getElementById('vis-svg').innerHTML = svgContent;
+  swapSvgRender('vis-svg', svgContent, w, h);
   document.querySelector('#vis-fibers-title').innerHTML = '📦 Puertos <span class="vis-toggle-left" onclick="toggleVisLeft()">◀ Ocultar</span>';
   
   document.getElementById('vis-panel').classList.remove('hidden');
@@ -4838,7 +4845,8 @@ async function saveMangaFusion(mangaId) {
     closeModal();
     showToast('✅ Empalme creado correctamente');
     renderTree();
-    refreshVisualizerCurrent();
+    // Refresh completo del visualizador
+    setTimeout(function() { openMangaVisualizer(mangaId, isNap ? 'nap' : undefined); }, 50);
   } catch(e) {
     showToast('❌ Error al crear empalme: ' + e.message);
   }
@@ -6305,7 +6313,7 @@ async function openMangaVisualizer(mangaId, entityType) {
   // ====== FINALIZE SVG with proper viewBox and scroll wrapper ======
   const svgContent = `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" preserveAspectRatio="xMinYMin meet" style="background:#555;border-radius:8px;min-width:${w}px;"><defs>${svgDefs}</defs>${svgLines}</svg>`;
   
-  document.getElementById('vis-svg').innerHTML = svgContent;
+  swapSvgRender('vis-svg', svgContent, w, h);
   document.getElementById('vis-panel').classList.remove('hidden');
   
   // Init block dragging for movable cable blocks
@@ -6676,7 +6684,9 @@ Promise.resolve().then(async () => {
             clearFiberSelection();
             showToast('✅ Empalme creado');
             renderTree();
-            refreshVisualizerCurrent();
+            // Refresh completo del visualizador para sync de potencia e indicadores
+            var refreshType = isNap ? 'nap' : undefined;
+            setTimeout(function() { openMangaVisualizer(mangaId, refreshType); }, 50);
             return;
           } else {
             if (isFirstCable && isSecondSplitter) {
@@ -6747,7 +6757,9 @@ Promise.resolve().then(async () => {
           clearFiberSelection();
           showToast('✅ Empalme creado');
           renderTree();
-          refreshVisualizerCurrent();
+          // Refresh completo del visualizador para sync de potencia e indicadores
+          var refreshType = isNap ? 'nap' : undefined;
+          setTimeout(function() { openMangaVisualizer(mangaId, refreshType); }, 50);
         }).catch(err => {
           showToast('❌ ' + err.message);
           clearFiberSelection();
@@ -8081,11 +8093,20 @@ function doBreakFusion(fusionId) {
   fetch(API + '/fusions/' + fusionId, { method: 'DELETE' })
     .then(r => {
       if (!r.ok) throw new Error('Error al romper');
-      refreshVisualizerCurrent();
-      showToast('\u2714 Empalme #' + fusionId + ' roto');
+      // Full visualizer refresh to ensure all power indicators sync correctly
+      closeModal();
+      if (state.currentVisualizerId && state.currentVisualizerType) {
+        var vid = state.currentVisualizerId;
+        var vtype = state.currentVisualizerType;
+        setTimeout(function() {
+          if (vtype === 'nap') openMangaVisualizer(vid, 'nap');
+          else openMangaVisualizer(vid);
+        }, 50);
+      }
     })
     .catch(e => showToast('\u274c ' + e.message));
 }
+
 async function deleteSpliceThenRefresh(spliceId) {
   closeModal();
   showModal('✂️ Romper empalme', 
@@ -8101,10 +8122,32 @@ async function doDeleteSpliceThenRefresh(spliceId) {
   closeModal();
   try {
     await fetch(API + '/splices/' + spliceId, { method: 'DELETE' });
-    refreshVisualizerCurrent();
-    showToast('\u2705 Splice #' + spliceId + ' roto');
+    // Dynamic removal instead of full refresh
+    const svgEl = document.querySelector('#vis-svg svg');
+    if (svgEl) {
+      svgEl.querySelectorAll('.fl[data-splice="' + spliceId + '"]').forEach(p => p.remove());
+      svgEl.querySelectorAll('.break-fusion-btn[data-splice="' + spliceId + '"]').forEach(g => g.remove());
+      svgEl.querySelectorAll('.fiber-dot-inner[data-has-fusion="true"]').forEach(d => {
+        d.setAttribute('data-has-fusion', 'false');
+      });
+      svgEl.querySelectorAll('.fiber-dot-glow, .fl-dot, .active-dot').forEach(g => {
+        var sId = g.getAttribute('data-splice');
+        if (!sId || sId === String(spliceId)) g.remove();
+      });
+      svgEl.querySelectorAll('.fl[data-splice="' + spliceId + '"]').forEach(p => p.classList.remove('active-pulse', 'data-flow'));
+    }
+    // Refresh completo del visualizador
+    if (typeof state !== 'undefined' && state.currentVisualizerId) {
+      var vid = state.currentVisualizerId;
+      var vtype = state.currentVisualizerType;
+      setTimeout(function() {
+        if (vtype === 'nap') openMangaVisualizer(vid, 'nap');
+        else openMangaVisualizer(vid);
+      }, 50);
+    }
+    showToast('✅ Splice roto');
   } catch(e) {
-    showToast('\u274c ' + e.message);
+    showToast('❌ Error: ' + e.message);
   }
 }
 
@@ -8128,25 +8171,55 @@ async function doBreakFusionDirect(fusionId) {
       const err = await res.json();
       throw new Error(err.error || 'Error al romper empalme');
     }
-    refreshVisualizerCurrent();
-    showToast('\u2705 Empalme #' + fusionId + ' roto - hilos liberados');
+    // Dynamic removal instead of close + reopen
+    const svgEl = document.querySelector('#vis-svg svg');
+    if (svgEl) {
+      // Extraer datos ANTES de borrar los paths
+      var pathsData = [];
+      svgEl.querySelectorAll('.fl[data-fusion="' + fusionId + '"]').forEach(function(p) {
+        pathsData.push({
+          connIn: p.getAttribute('data-conn-in'),
+          fiberIn: p.getAttribute('data-fiber-in'),
+          connOut: p.getAttribute('data-conn-out'),
+          fiberOut: p.getAttribute('data-fiber-out')
+        });
+        p.remove();
+      });
+      svgEl.querySelectorAll('.break-fusion-btn[data-fusion="' + fusionId + '"]').forEach(function(g) { g.remove(); });
+      // Reset dots: solo quitar fusion, NO tocar potencia
+      // La potencia se reevalua desde el servidor abajo
+      pathsData.forEach(function(pd) {
+        if (pd.connIn && pd.fiberIn) {
+          svgEl.querySelectorAll('.fiber-dot-inner[data-cable-conn="' + pd.connIn + '"][data-fiber-num="' + pd.fiberIn + '"]').forEach(function(d) {
+            d.setAttribute('data-has-fusion', 'false');
+          });
+        }
+        if (pd.connOut && pd.fiberOut) {
+          svgEl.querySelectorAll('.fiber-dot-inner[data-cable-conn="' + pd.connOut + '"][data-fiber-num="' + pd.fiberOut + '"]').forEach(function(d) {
+            d.setAttribute('data-has-fusion', 'false');
+          });
+        }
+      });
+      // Limpiar fiber-connected class en grupos que ya no tienen fusion
+      svgEl.querySelectorAll('.fiber-dot-group.fiber-connected').forEach(function(g) {
+        var inner = g.querySelector('.fiber-dot-inner');
+        if (inner && inner.getAttribute('data-has-fusion') !== 'true') {
+          g.classList.remove('fiber-connected');
+        }
+      });
+    }
+    // Refresh completo del visualizador
+    if (typeof state !== 'undefined' && state.currentVisualizerId) {
+      var vid = state.currentVisualizerId;
+      var vtype = state.currentVisualizerType;
+      setTimeout(function() {
+        if (vtype === 'nap') openMangaVisualizer(vid, 'nap');
+        else openMangaVisualizer(vid);
+      }, 50);
+    }
+    showToast('\u2705 Empalme #' + fusionId + ' roto \u2014 hilos liberados');
   } catch(e) {
     showToast('\u274c ' + e.message);
-  }
-}
-
-// ========== REFRESH SUAVE DEL VISUALIZADOR ACTUAL ==========
-function refreshVisualizerCurrent() {
-  if (typeof state !== 'undefined' && state.currentVisualizerId) {
-    var vid = state.currentVisualizerId;
-    var vtype = state.currentVisualizerType;
-    // Fade suave: ocultar SVG brevemente mientras se recarga
-    var wrap = document.getElementById('vis-svg');
-    if (wrap) wrap.classList.add('vis-reloading');
-    setTimeout(function() {
-      if (vtype === 'nap') openMangaVisualizer(vid, 'nap');
-      else openMangaVisualizer(vid);
-    }, 80);
   }
 }
 
@@ -8254,6 +8327,40 @@ async function doBreakOLTConnection(connId) {
   } catch(e) {
     showToast('❌ ' + e.message);
   }
+}
+
+// ========== DOBLE BUFFER PARA REFRESH SIN FLASH ==========
+// Al recargar el SVG, mover el anterior a un hermano oculto
+// para que el usuario nunca vea un area en blanco.
+function swapSvgRender(wrapId, svgHtml) {
+    var wrap = document.getElementById(wrapId);
+    if (!wrap) return;
+    var oldSvg = wrap.querySelector('svg');
+    if (oldSvg) {
+        // Crear o reusar un contenedor buffer hermano de wrap
+        var parent = wrap.parentNode;
+        var bufId = wrapId + '-buf';
+        var buffer = document.getElementById(bufId);
+        if (!buffer) {
+            buffer = document.createElement('div');
+            buffer.id = bufId;
+            buffer.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;overflow:hidden;pointer-events:none;z-index:10;background:#16161e;border-radius:8px;';
+        }
+        // Mover el SVG actual al buffer
+        buffer.innerHTML = '';
+        buffer.appendChild(oldSvg);
+        parent.appendChild(buffer);
+        // Renderizar nuevo SVG en el wrap (debajo del buffer)
+        wrap.innerHTML = svgHtml;
+        // Quitar buffer cuando el nuevo SVG ya se renderizo
+        requestAnimationFrame(function() {
+            if (buffer && buffer.parentNode) {
+                buffer.parentNode.removeChild(buffer);
+            }
+        });
+    } else {
+        wrap.innerHTML = svgHtml;
+    }
 }
 
 // ========== NAP VISUALIZER ENHANCEMENTS ==========
@@ -8933,7 +9040,7 @@ async function openOLTVisualizer(oltId) {
     const svgContent = '<svg width="' + w + '" height="' + viewH + '" viewBox="0 ' + viewStartY + ' ' + w + ' ' + viewH + '" preserveAspectRatio="xMinYMin meet" style="background:#555;border-radius:8px;min-width:' + w + 'px;"><defs>' + svgDefs + '</defs>' + svgLines + '</svg>';
     const svgContainer = document.querySelector('#vis-svg');
     if (!svgContainer) { _oltRefreshGuard = false; return; }
-    svgContainer.innerHTML = svgContent;
+    swapSvgRender('vis-svg', svgContent, w, h);
     // Restore previous viewBox if refreshing (preserves zoom/pan)
     if (_pendingOLTViewBox) {
       var newSvg = svgContainer.querySelector('svg');
