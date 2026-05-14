@@ -197,6 +197,22 @@ async function injectFusion(connIn, fiberIn, connOut, fiberOut, fusionId, lossDb
   const tg = tgtDot.closest('.fiber-dot-group');
   if (sg) sg.classList.add('fiber-connected');
   if (tg) tg.classList.add('fiber-connected');
+  
+  // ⭐ Al crear la fusion, remover el ⚡ del texto SVG
+  // Cuando un hilo tiene fusion, el ⚡ no debe aparecer (la fusion muestra potencia)
+  [srcDot, tgtDot].forEach(function(dot) {
+    var fn = dot.getAttribute('data-fiber-num');
+    var dotY = parseFloat(dot.getAttribute('cy'));
+    // Buscar texto SVG que contenga #N y este alineado verticalmente con el dot
+    svgEl.querySelectorAll('text').forEach(function(tx) {
+      var txY = parseFloat(tx.getAttribute('y'));
+      if (isNaN(txY) || isNaN(dotY)) return;
+      if (Math.abs(txY - dotY) > 4) return;
+      if (tx.textContent.includes('#' + fn)) {
+        tx.textContent = tx.textContent.replace(/^[\u26A1]+/, '');
+      }
+    });
+  });
 
   // Actualizar contador en toolbar
   const infoEl = document.getElementById('vis-splitter-info');
@@ -374,6 +390,20 @@ function injectSplice(cableConnId, cableFiber, splitterMfId, splitterPort, splic
   cableDot.setAttribute('data-has-fusion','true');
   const cg = cableDot.closest('.fiber-dot-group');
   if (cg) cg.classList.add('fiber-connected');
+  
+  // ⭐ Remover ⚡ del texto SVG al crear splice (igual que en injectFusion)
+  [cableDot, splitterDot].forEach(function(dot) {
+    var fn = dot.getAttribute('data-fiber-num');
+    var dotY = parseFloat(dot.getAttribute('cy'));
+    svgEl.querySelectorAll('text').forEach(function(tx) {
+      var txY = parseFloat(tx.getAttribute('y'));
+      if (isNaN(txY) || isNaN(dotY)) return;
+      if (Math.abs(txY - dotY) > 4) return;
+      if (tx.textContent.includes('#' + fn)) {
+        tx.textContent = tx.textContent.replace(/^[\u26A1]+/, '');
+      }
+    });
+  });
 
   // Actualizar contador
   const infoEl = document.getElementById('vis-splitter-info');
@@ -8234,6 +8264,25 @@ async function refreshPowerDotsFromServer() {
           }
         }
       }
+      
+      // ⭐ Actualizar texto SVG (⚡#N vs #N) segun poder y fusion
+      var fn = dot.getAttribute('data-fiber-num');
+      var hasFusion = dot.getAttribute('data-has-fusion') === 'true';
+      var dotY = parseFloat(dot.getAttribute('cy'));
+      svgEl.querySelectorAll('text').forEach(function(tx) {
+        var txY = parseFloat(tx.getAttribute('y'));
+        if (isNaN(txY) || isNaN(dotY)) return;
+        if (Math.abs(txY - dotY) > 4) return;
+        if (tx.textContent.includes('#' + fn)) {
+          if (hasPower && !hasFusion) {
+            if (!tx.textContent.includes('\u26A1')) {
+              tx.textContent = '\u26A1' + tx.textContent;
+            }
+          } else {
+            tx.textContent = tx.textContent.replace(/^[\u26A1]+/, '');
+          }
+        }
+      });
     });
     
     // Actualizar _activePowerMap para operaciones posteriores
