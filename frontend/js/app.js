@@ -5381,34 +5381,42 @@ async function openMangaVisualizer(mangaId, entityType) {
   
   // For consecutive same-cable points: detect which side is closer to OLT
   // La potencia viene DESDE la OLT. Queremos el lado OLT a la IZQUIERDA.
+  // ⭐ Refresh all cable points for each cable to ensure OLT detection works
+  // (state._cablePoints puede estar stale si la manga se creo despues de cargar la pagina)
+  for (var ci = 0; ci < uniqueCableIds.length; ci++) {
+    var cid = uniqueCableIds[ci];
+    var existing = (state._cablePoints || []).filter(function(p) { return p.cable_id == cid; });
+    if (existing.length === 0) {
+      try {
+        var fresh = await api('/cable-points?cable_id=' + cid);
+        if (fresh && fresh.length > 0) {
+          if (!state._cablePoints) state._cablePoints = [];
+          fresh.forEach(function(fp) {
+            if (!state._cablePoints.some(function(p) { return p.id == fp.id; })) {
+              state._cablePoints.push(fp);
+            }
+          });
+        }
+      } catch(e) {}
+    }
+  }
+  
   var _cablePairLeft = {}, _cablePairRight = {};
   uniqueCableIds.forEach(function(cid) {
     var mangaPts = cablePoints.filter(function(cp) { return cp.cable_id == cid; }).sort(function(a, b) { return a.sequence - b.sequence; });
+    var cableAllPts = (state._cablePoints || []).filter(function(p) { return p.cable_id == cid; }).sort(function(a, b) { return a.sequence - b.sequence; });
     for (var pi = 0; pi < mangaPts.length - 1; pi++) {
       if (mangaPts[pi + 1].sequence === mangaPts[pi].sequence + 1) {
-        // Find which side is closer to an OLT by checking the cable's point sequence
-        // The side with HIGHER sequence is closer to the OLT (OLT is usually at end of cable)
-        // But also check if there's an OLT at the other end by seeing all cable points
-        var allCablePointsSorted = [];
-        try {
-          allCablePointsSorted = state._cablePoints.filter(function(p) { return p.cable_id == cid; }).sort(function(a, b) { return a.sequence - b.sequence; });
-        } catch(e) { allCablePointsSorted = []; }
         var firstSeq = mangaPts[pi].sequence;
         var secondSeq = mangaPts[pi + 1].sequence;
-        // Compare by SEQUENCE, not array index (Bug: pi is mangaPts index, not allCablePoints index)
-        var hasOLTBefore = allCablePointsSorted.some(function(p) { return p.sequence < firstSeq && p.element_type === 'olt'; });
-        var hasOLTAfter = allCablePointsSorted.some(function(p) { return p.sequence > secondSeq && p.element_type === 'olt'; });
-        
+        var hasOLTBefore = cableAllPts.some(function(p) { return p.sequence < firstSeq && p.element_type === 'olt'; });
+        var hasOLTAfter = cableAllPts.some(function(p) { return p.sequence > secondSeq && p.element_type === 'olt'; });
         var firstPt = mangaPts[pi];
         var secondPt = mangaPts[pi + 1];
-        
-        // OLT-side point should be on the LEFT (so animation flows LEFT→RIGHT)
         if (hasOLTAfter || (!hasOLTBefore && secondSeq > firstSeq)) {
-          // OLT is after this pair → second point (higher seq) is closer to OLT → it's LEFT
           _cablePairLeft[secondPt.id] = true;
           _cablePairRight[firstPt.id] = true;
         } else {
-          // OLT is before this pair → first point (lower seq) is closer to OLT → it's LEFT
           _cablePairLeft[firstPt.id] = true;
           _cablePairRight[secondPt.id] = true;
         }

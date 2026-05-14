@@ -3085,6 +3085,7 @@ app.get('/api/mangas/:id/fusions', (req, res) => {
     LEFT JOIN fiber_connections fc_in ON fc_in.cable_id = cpi.cable_id AND fc_in.fiber_number = f.fiber_in
     LEFT JOIN fiber_connections fc_out ON fc_out.cable_id = cpo.cable_id AND fc_out.fiber_number = f.fiber_out
     WHERE (cpi.element_type='nap' AND cpi.element_id=?) OR (cpo.element_type='nap' AND cpo.element_id=?)
+    GROUP BY f.id
     ORDER BY id
   `).all(entityId, entityId, entityId);
   res.json(fusions);
@@ -3106,9 +3107,10 @@ app.get('/api/cables/:id/fusions', (req, res) => {
     LEFT JOIN cables c_out ON c_out.id = cpo.cable_id
     LEFT JOIN fiber_connections fc_in ON fc_in.cable_id = cpi.cable_id AND fc_in.fiber_number = f.fiber_in
     LEFT JOIN fiber_connections fc_out ON fc_out.cable_id = cpo.cable_id AND fc_out.fiber_number = f.fiber_out
-    WHERE f.cable_id = ?
+    WHERE cpi.cable_id = ? OR cpo.cable_id = ?
+    GROUP BY f.id
     ORDER BY f.id
-  `).all(req.params.id);
+  `).all(req.params.id, req.params.id);
   res.json(fusions);
 });
 
