@@ -3070,6 +3070,7 @@ app.get('/api/mangas/:id/fusions', (req, res) => {
     LEFT JOIN fiber_connections fc_in ON fc_in.cable_id = cpi.cable_id AND fc_in.fiber_number = f.fiber_in
     LEFT JOIN fiber_connections fc_out ON fc_out.cable_id = cpo.cable_id AND fc_out.fiber_number = f.fiber_out
     WHERE f.manga_id = ?
+    GROUP BY f.id
     UNION ALL
     SELECT f.*,
       c_in.name as cable_in_name, c_out.name as cable_out_name,
