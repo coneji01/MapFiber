@@ -995,6 +995,28 @@ function setActiveFolder(folderId) {
     const name = state.folders.find(f => f.id == folderId)?.name || '';
     document.getElementById('tree-active-folder').textContent = '📌 Activa: ' + name + ' — Items van aquí automáticamente';
     showToast('📌 Carpeta activa: ' + name);
+    
+    // ⭐ Al activar carpeta, mostrar sus items en el mapa automaticamente
+    // Recorrer items de esta carpeta y subcarpetas
+    (function showAllItems(fId) {
+      var folder = state.folders.find(function(f) { return f.id == fId; });
+      if (!folder) return;
+      // Mostrar items directos
+      if (folder.items) {
+        folder.items.forEach(function(item) {
+          var ik = item.item_type + ':' + item.item_id;
+          state.visibleItems.add(ik);
+        });
+      }
+      // Mostrar items en subcarpetas
+      state.folders.forEach(function(f) {
+        if (f.parent_id == fId) showAllItems(f.id);
+      });
+      // Marcar la carpeta como visible
+      state.visibleItems.add('folder:' + fId);
+    })(folderId);
+    
+    updateMapVisibility();
   }
   renderTree();
 }
