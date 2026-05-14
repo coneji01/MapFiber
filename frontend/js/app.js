@@ -8054,42 +8054,38 @@ function doBreakFusion(fusionId) {
   fetch(API + '/fusions/' + fusionId, { method: 'DELETE' })
     .then(r => {
       if (!r.ok) throw new Error('Error al romper');
-      // Dynamic removal: just remove the SVG path and update attributes
+      // Dynamic removal: remove SVG paths and buttons
       const svgEl = document.querySelector('#vis-svg svg');
       if (svgEl) {
-        // Remove fusion path and button
         svgEl.querySelectorAll('.fl[data-fusion="' + fusionId + '"]').forEach(function(p) {
           var connIn = p.getAttribute('data-conn-in');
           var fiberIn = p.getAttribute('data-fiber-in');
           var connOut = p.getAttribute('data-conn-out');
           var fiberOut = p.getAttribute('data-fiber-out');
           p.remove();
-          // Reset specific fiber dots
+          // Reset fusion status on dots, but DON'T remove power blindly
+          // Power will be re-evaluated by refreshPowerDotsFromServer()
           if (connIn && fiberIn) {
             svgEl.querySelectorAll('.fiber-dot-inner[data-cable-conn="' + connIn + '"][data-fiber-num="' + fiberIn + '"]').forEach(function(d) {
               d.setAttribute('data-has-fusion', 'false');
-              d.setAttribute('data-has-power', 'false');
-              var j = d.closest('.fiber-dot-group')?.querySelector('.fiber-jacket');
-              if (j) j.classList.remove('fiber-powered');
             });
           }
           if (connOut && fiberOut) {
             svgEl.querySelectorAll('.fiber-dot-inner[data-cable-conn="' + connOut + '"][data-fiber-num="' + fiberOut + '"]').forEach(function(d) {
               d.setAttribute('data-has-fusion', 'false');
-              d.setAttribute('data-has-power', 'false');
-              var j = d.closest('.fiber-dot-group')?.querySelector('.fiber-jacket');
-              if (j) j.classList.remove('fiber-powered');
             });
           }
         });
         svgEl.querySelectorAll('.break-fusion-btn[data-fusion="' + fusionId + '"]').forEach(function(g) { g.remove(); });
-        // Reset fiber-connected class en los grupos afectados
+        // Reset fiber-connected class
         svgEl.querySelectorAll('.fiber-dot-group.fiber-connected').forEach(function(g) {
           var inner = g.querySelector('.fiber-dot-inner');
           if (inner && inner.getAttribute('data-has-fusion') !== 'true') {
             g.classList.remove('fiber-connected');
           }
         });
+        // Re-fetch server power data to correctly mark which side keeps power
+        refreshPowerDotsFromServer();
       }
       showToast('\u2714 Empalme #' + fusionId + ' roto');
     })
@@ -8124,6 +8120,8 @@ async function doDeleteSpliceThenRefresh(spliceId) {
         if (!sId || sId === String(spliceId)) g.remove();
       });
       svgEl.querySelectorAll('.fl[data-splice="' + spliceId + '"]').forEach(p => p.classList.remove('active-pulse', 'data-flow'));
+      // Re-marcar potencia desde el servidor
+      refreshPowerDotsFromServer();
     }
     showToast('✅ Splice roto');
   } catch(e) {
@@ -8166,22 +8164,17 @@ async function doBreakFusionDirect(fusionId) {
         p.remove();
       });
       svgEl.querySelectorAll('.break-fusion-btn[data-fusion="' + fusionId + '"]').forEach(function(g) { g.remove(); });
-      // Reset dots con los datos extraidos antes del remove
+      // Reset dots: solo quitar fusion, NO tocar potencia
+      // La potencia se reevalua desde el servidor abajo
       pathsData.forEach(function(pd) {
         if (pd.connIn && pd.fiberIn) {
           svgEl.querySelectorAll('.fiber-dot-inner[data-cable-conn="' + pd.connIn + '"][data-fiber-num="' + pd.fiberIn + '"]').forEach(function(d) {
             d.setAttribute('data-has-fusion', 'false');
-            d.setAttribute('data-has-power', 'false');
-            var j = d.closest('.fiber-dot-group')?.querySelector('.fiber-jacket');
-            if (j) j.classList.remove('fiber-powered');
           });
         }
         if (pd.connOut && pd.fiberOut) {
           svgEl.querySelectorAll('.fiber-dot-inner[data-cable-conn="' + pd.connOut + '"][data-fiber-num="' + pd.fiberOut + '"]').forEach(function(d) {
             d.setAttribute('data-has-fusion', 'false');
-            d.setAttribute('data-has-power', 'false');
-            var j = d.closest('.fiber-dot-group')?.querySelector('.fiber-jacket');
-            if (j) j.classList.remove('fiber-powered');
           });
         }
       });
@@ -8192,10 +8185,73 @@ async function doBreakFusionDirect(fusionId) {
           g.classList.remove('fiber-connected');
         }
       });
+      // Re-fetch server power data to correctly mark which side keeps power
+      refreshPowerDotsFromServer();
     }
     showToast('\u2705 Empalme #' + fusionId + ' roto \u2014 hilos liberados');
   } catch(e) {
     showToast('\u274c ' + e.message);
+  }
+}
+
+// ========== RE-EVALUAR POTENCIA DESDE EL SERVIDOR ==========
+// Se llama despues de romper un empalme para que solo el lado OLT retenga potencia
+async function refreshPowerDotsFromServer() {
+  try {
+    const res = await fetch(API + '/olts/hilos-con-potencia');
+    if (!res.ok) return;
+    const data = await res.json();
+    const svgEl = document.querySelector('#vis-svg svg');
+    if (!svgEl) return;
+    
+    // Construir set de pares (cable_point_id:fiber_number) con potencia
+    var potSet = {};
+    if (data.potencia && data.potencia.length > 0) {
+      data.potencia.forEach(function(p) {
+        var cpId = p.cable_point_id;
+        if (!cpId) return;
+        potSet[cpId + ':' + p.fiber_number] = true;
+      });
+    }
+    
+    // Re-marcar TODOS los fiber-dot-inner del SVG
+    var allDots = svgEl.querySelectorAll('.fiber-dot-inner');
+    allDots.forEach(function(dot) {
+      var connId = dot.getAttribute('data-cable-conn');
+      var fiberNum = dot.getAttribute('data-fiber-num');
+      var key = connId + ':' + fiberNum;
+      var hasPower = !!potSet[key];
+      
+      dot.setAttribute('data-has-power', hasPower ? 'true' : 'false');
+      var g = dot.closest('.fiber-dot-group');
+      if (g) {
+        var j = g.querySelector('.fiber-jacket');
+        if (j) {
+          if (hasPower) {
+            j.classList.add('fiber-powered');
+          } else {
+            j.classList.remove('fiber-powered');
+          }
+        }
+      }
+    });
+    
+    // Actualizar _activePowerMap para operaciones posteriores
+    if (typeof _activePowerMap !== 'undefined') {
+      _activePowerMap = {};
+      if (data.potencia) {
+        data.potencia.forEach(function(p) {
+          var connId = p.cable_point_id;
+          if (!connId) return;
+          if (!_activePowerMap[connId]) _activePowerMap[connId] = {};
+          _activePowerMap[connId][p.fiber_number] = true;
+        });
+      }
+    }
+    
+    console.log('[POWER-REFRESH] Updated ' + allDots.length + ' fiber dots from server power data');
+  } catch(e) {
+    console.warn('[POWER-REFRESH] Error:', e.message);
   }
 }
 

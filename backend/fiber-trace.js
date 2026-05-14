@@ -376,11 +376,16 @@ router.get('/hilos-con-potencia', (req, res) => {
               LIMIT 1
             `).get(punto.id, fiberNum, punto.id, fiberNum);
             if (!spliceCheck) {
-              // ⛔ Sin fusion Y sin splice → hilo CORTADO
+              // ⭐ Sin fusion Y sin splice: la fibra pasa a traves de la manga
+              // (pass-through, mismo cable). NO es corte. Tratar como punto de ruteo.
+              // El hilo es continuo en el mismo cable.
+              // NOTA: Si se corto una fusion aqui, el OTRO cable ya no recibe potencia
+              // porque el trace solo camina desde fuentes OLT. Al no haber fusion,
+              // el otro cable no se alcanza.
+            } else {
+              // Hay splice → marcar punto, la seccion de ruteo manejara la continuacion
               visitadosPuntos.add(puntoKey);
-              break;
             }
-            // Hay splice → salir del bloque MANGA, la seccion de ruteo lo manejara
           } else {
             // ✅ Fusion existe → marcar el otro lado
             var otroLadoId = (fwd.cable_connection_id_in === punto.id)
@@ -509,10 +514,13 @@ router.get('/hilos-con-potencia', (req, res) => {
                 LIMIT 1
               `).get(dp.id, fNumDest, dp.id, fNumDest);
               if (!spAntes) {
-                break; // ⛔ Sin fusion Y sin splice → hilo cortado
+                // ⭐ Sin fusion Y sin splice: pass-through en manga
+                // La fibra es continua en el mismo cable, tratar como ruteo
+                visitadosPuntos.add(dpKey);
+              } else {
+                // Hay splice: marcar punto y seguir — saltar fusion-specific code
+                visitadosPuntos.add(dpKey);
               }
-              // Hay splice: marcar punto y seguir — saltar fusion-specific code
-              visitadosPuntos.add(dpKey);
             } else {
               // Hay fusion: marcar ambos lados
               visitadosPuntos.add(dpKey);
@@ -717,7 +725,27 @@ router.get('/hilos-con-potencia', (req, res) => {
   }
 
   // Sincronizar fiber_connections.active_power con los puntos traceados
-  // para que POST /splices y otros endpoints detecten la potencia
+  // PRIMERO: limpiar active_power en cables que ya no tienen potencia
+  var cablesEnPotencia = new Set();
+  var powerCablePairs = {}; // cable_id -> Set of fiber_numbers
+  for (var ppp of todosPotencia) {
+    var cableP = db.prepare('SELECT cable_id FROM cable_points WHERE id=?').get(ppp.cable_point_id);
+    if (cableP) {
+      cablesEnPotencia.add(cableP.cable_id);
+      if (!powerCablePairs[cableP.cable_id]) powerCablePairs[cableP.cable_id] = new Set();
+      powerCablePairs[cableP.cable_id].add(ppp.fiber_number);
+    }
+  }
+  // Limpiar active_power en fibras que YA NO tienen potencia (ej: fusion cortada)
+  for (var cid of cablesEnPotencia) {
+    var fcs = db.prepare('SELECT id, fiber_number FROM fiber_connections WHERE cable_id=? AND active_power=1').all(cid);
+    for (var fc of fcs) {
+      if (!powerCablePairs[cid] || !powerCablePairs[cid].has(fc.fiber_number)) {
+        db.prepare('UPDATE fiber_connections SET active_power=0, power_level=NULL WHERE id=?').run(fc.id);
+      }
+    }
+  }
+  // LUEGO: asegurar que las que SÍ tienen potencia estén marcadas
   for (var ppp of todosPotencia) {
     var cableP = db.prepare('SELECT cable_id FROM cable_points WHERE id=?').get(ppp.cable_point_id);
     if (cableP) {
