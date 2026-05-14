@@ -4838,8 +4838,7 @@ async function saveMangaFusion(mangaId) {
     closeModal();
     showToast('✅ Empalme creado correctamente');
     renderTree();
-    const fid = parseInt(connIn) + '-' + parseInt(fibIn);
-    await injectFusion(parseInt(connIn), parseInt(fibIn), parseInt(connOut), parseInt(fibOut), result?.fusion?.id || result?.id || fid, parseFloat(loss || 0.05));
+    refreshVisualizerCurrent();
   } catch(e) {
     showToast('❌ Error al crear empalme: ' + e.message);
   }
@@ -6677,7 +6676,7 @@ Promise.resolve().then(async () => {
             clearFiberSelection();
             showToast('✅ Empalme creado');
             renderTree();
-            await injectFusion(swapIn, swapFibIn, swapOut, swapFibOut, newFusion.fusion?.id || newFusion.id, 0.05);
+            refreshVisualizerCurrent();
             return;
           } else {
             if (isFirstCable && isSecondSplitter) {
@@ -6748,8 +6747,7 @@ Promise.resolve().then(async () => {
           clearFiberSelection();
           showToast('✅ Empalme creado');
           renderTree();
-          // Inyección quirúrgica del splice
-          injectSplice(cableSideId, cableSideFiber, splitterMfId, splitterPort, spliceData?.id || 's-' + cableSideId + '-' + cableSideFiber, spliceData?.has_power);
+          refreshVisualizerCurrent();
         }).catch(err => {
           showToast('❌ ' + err.message);
           clearFiberSelection();
@@ -8083,68 +8081,11 @@ function doBreakFusion(fusionId) {
   fetch(API + '/fusions/' + fusionId, { method: 'DELETE' })
     .then(r => {
       if (!r.ok) throw new Error('Error al romper');
-      // Dynamic removal: solo borrar path y actualizar estado del lado NO-OLT
-      const svgEl = document.querySelector('#vis-svg svg');
-      if (svgEl) {
-        svgEl.querySelectorAll('.fl[data-fusion="' + fusionId + '"]').forEach(function(p) {
-          var connIn = p.getAttribute('data-conn-in');
-          var fiberIn = p.getAttribute('data-fiber-in');
-          var connOut = p.getAttribute('data-conn-out');
-          var fiberOut = p.getAttribute('data-fiber-out');
-          var oltSrc = p.getAttribute('data-olt-source');
-          p.remove();
-          // Resetear dots: solo quitar power del lado que NO es OLT
-          function removePowerFromSide(connId, fiberNum) {
-            if (!connId || !fiberNum) return;
-            var isOltSide = connId === oltSrc;
-            svgEl.querySelectorAll('.fiber-dot-inner[data-cable-conn="' + connId + '"][data-fiber-num="' + fiberNum + '"]').forEach(function(d) {
-              d.setAttribute('data-has-fusion', 'false');
-              if (!isOltSide) {
-                d.setAttribute('data-has-power', 'false');
-                var j = d.closest('.fiber-dot-group')?.querySelector('.fiber-jacket');
-                if (j) j.classList.remove('fiber-powered');
-                // Quitar ⚡ del texto
-                var dotY = parseFloat(d.getAttribute('cy'));
-                svgEl.querySelectorAll('text').forEach(function(tx) {
-                  var txY = parseFloat(tx.getAttribute('y'));
-                  if (isNaN(txY) || isNaN(dotY)) return;
-                  if (Math.abs(txY - dotY) > 4) return;
-                  if (tx.textContent.includes('#' + fiberNum)) {
-                    tx.textContent = tx.textContent.replace(/^[\u26A1]+/, '');
-                  }
-                });
-              } else {
-                // Lado OLT: asegurar que tenga ⚡ (si no tiene fusion)
-                var dotY = parseFloat(d.getAttribute('cy'));
-                svgEl.querySelectorAll('text').forEach(function(tx) {
-                  var txY = parseFloat(tx.getAttribute('y'));
-                  if (isNaN(txY) || isNaN(dotY)) return;
-                  if (Math.abs(txY - dotY) > 4) return;
-                  if (tx.textContent.includes('#' + fiberNum)) {
-                    if (!tx.textContent.includes('\u26A1')) {
-                      tx.textContent = '\u26A1' + tx.textContent;
-                    }
-                  }
-                });
-              }
-            });
-          }
-          removePowerFromSide(connIn, fiberIn);
-          removePowerFromSide(connOut, fiberOut);
-        });
-        svgEl.querySelectorAll('.break-fusion-btn[data-fusion="' + fusionId + '"]').forEach(function(g) { g.remove(); });
-        // Reset fiber-connected class
-        svgEl.querySelectorAll('.fiber-dot-group.fiber-connected').forEach(function(g) {
-          var inner = g.querySelector('.fiber-dot-inner');
-          if (inner && inner.getAttribute('data-has-fusion') !== 'true') {
-            g.classList.remove('fiber-connected');
-          }
-        });
-      }
+      refreshVisualizerCurrent();
+      showToast('\u2714 Empalme #' + fusionId + ' roto');
     })
     .catch(e => showToast('\u274c ' + e.message));
 }
-
 async function deleteSpliceThenRefresh(spliceId) {
   closeModal();
   showModal('✂️ Romper empalme', 
@@ -8160,23 +8101,10 @@ async function doDeleteSpliceThenRefresh(spliceId) {
   closeModal();
   try {
     await fetch(API + '/splices/' + spliceId, { method: 'DELETE' });
-    // Dynamic removal instead of full refresh
-    const svgEl = document.querySelector('#vis-svg svg');
-    if (svgEl) {
-      svgEl.querySelectorAll('.fl[data-splice="' + spliceId + '"]').forEach(p => p.remove());
-      svgEl.querySelectorAll('.break-fusion-btn[data-splice="' + spliceId + '"]').forEach(g => g.remove());
-      svgEl.querySelectorAll('.fiber-dot-inner[data-has-fusion="true"]').forEach(d => {
-        d.setAttribute('data-has-fusion', 'false');
-      });
-      svgEl.querySelectorAll('.fiber-dot-glow, .fl-dot, .active-dot').forEach(g => {
-        var sId = g.getAttribute('data-splice');
-        if (!sId || sId === String(spliceId)) g.remove();
-      });
-      svgEl.querySelectorAll('.fl[data-splice="' + spliceId + '"]').forEach(p => p.classList.remove('active-pulse', 'data-flow'));
-    }
-    showToast('✅ Splice roto');
+    refreshVisualizerCurrent();
+    showToast('\u2705 Splice #' + spliceId + ' roto');
   } catch(e) {
-    showToast('❌ Error: ' + e.message);
+    showToast('\u274c ' + e.message);
   }
 }
 
@@ -8200,72 +8128,25 @@ async function doBreakFusionDirect(fusionId) {
       const err = await res.json();
       throw new Error(err.error || 'Error al romper empalme');
     }
-    // Dynamic removal
-    const svgEl = document.querySelector('#vis-svg svg');
-    if (svgEl) {
-      // Extraer datos ANTES de borrar los paths
-      var pathsData = [];
-      svgEl.querySelectorAll('.fl[data-fusion="' + fusionId + '"]').forEach(function(p) {
-        pathsData.push({
-          connIn: p.getAttribute('data-conn-in'),
-          fiberIn: p.getAttribute('data-fiber-in'),
-          connOut: p.getAttribute('data-conn-out'),
-          fiberOut: p.getAttribute('data-fiber-out'),
-          oltSrc: p.getAttribute('data-olt-source')
-        });
-        p.remove();
-      });
-      svgEl.querySelectorAll('.break-fusion-btn[data-fusion="' + fusionId + '"]').forEach(function(g) { g.remove(); });
-      // Reset dots: solo quitar power del lado que NO es OLT
-      function removePowerFromSide(connId, fiberNum, oltSource) {
-        if (!connId || !fiberNum) return;
-        var isOltSide = connId === oltSource;
-        svgEl.querySelectorAll('.fiber-dot-inner[data-cable-conn="' + connId + '"][data-fiber-num="' + fiberNum + '"]').forEach(function(d) {
-          d.setAttribute('data-has-fusion', 'false');
-          if (!isOltSide) {
-            d.setAttribute('data-has-power', 'false');
-            var j = d.closest('.fiber-dot-group')?.querySelector('.fiber-jacket');
-            if (j) j.classList.remove('fiber-powered');
-            var dotY = parseFloat(d.getAttribute('cy'));
-            svgEl.querySelectorAll('text').forEach(function(tx) {
-              var txY = parseFloat(tx.getAttribute('y'));
-              if (isNaN(txY) || isNaN(dotY)) return;
-              if (Math.abs(txY - dotY) > 4) return;
-              if (tx.textContent.includes('#' + fiberNum)) {
-                tx.textContent = tx.textContent.replace(/^[\u26A1]+/, '');
-              }
-            });
-          } else {
-            // Lado OLT: asegurar ⚡ si no tiene fusion
-            var dotY = parseFloat(d.getAttribute('cy'));
-            svgEl.querySelectorAll('text').forEach(function(tx) {
-              var txY = parseFloat(tx.getAttribute('y'));
-              if (isNaN(txY) || isNaN(dotY)) return;
-              if (Math.abs(txY - dotY) > 4) return;
-              if (tx.textContent.includes('#' + fiberNum)) {
-                if (!tx.textContent.includes('\u26A1')) {
-                  tx.textContent = '\u26A1' + tx.textContent;
-                }
-              }
-            });
-          }
-        });
-      }
-      pathsData.forEach(function(pd) {
-        removePowerFromSide(pd.connIn, pd.fiberIn, pd.oltSrc);
-        removePowerFromSide(pd.connOut, pd.fiberOut, pd.oltSrc);
-      });
-      // Limpiar fiber-connected class
-      svgEl.querySelectorAll('.fiber-dot-group.fiber-connected').forEach(function(g) {
-        var inner = g.querySelector('.fiber-dot-inner');
-        if (inner && inner.getAttribute('data-has-fusion') !== 'true') {
-          g.classList.remove('fiber-connected');
-        }
-      });
-    }
-    showToast('\u2705 Empalme #' + fusionId + ' roto \u2014 hilos liberados');
+    refreshVisualizerCurrent();
+    showToast('\u2705 Empalme #' + fusionId + ' roto - hilos liberados');
   } catch(e) {
     showToast('\u274c ' + e.message);
+  }
+}
+
+// ========== REFRESH SUAVE DEL VISUALIZADOR ACTUAL ==========
+function refreshVisualizerCurrent() {
+  if (typeof state !== 'undefined' && state.currentVisualizerId) {
+    var vid = state.currentVisualizerId;
+    var vtype = state.currentVisualizerType;
+    // Fade suave: ocultar SVG brevemente mientras se recarga
+    var wrap = document.getElementById('vis-svg');
+    if (wrap) wrap.classList.add('vis-reloading');
+    setTimeout(function() {
+      if (vtype === 'nap') openMangaVisualizer(vid, 'nap');
+      else openMangaVisualizer(vid);
+    }, 80);
   }
 }
 
