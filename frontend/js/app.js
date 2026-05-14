@@ -5160,15 +5160,16 @@ async function openMangaVisualizer(mangaId, entityType) {
   let renderFusions = [];
   try {
     fusions = await fetch(API + '/mangas/' + mangaId + '/fusions').then(r => r.json());
-    // Separar: fusions pasantes (misma entidad) no se renderizan pero mantienen potencia
+    // Separar: fusiones duplicadas (loop-back, mismo cable_point) no se renderizan
+    // Las fusiones entre diferentes puntos del manga (IN→OUT) SÍ se muestran
     var cpIds = new Set(cablePoints.map(function(cp) { return cp.id; }));
-    // Para NAPs: mostrar todas las fusiones (no hay splices que muestren la conexión)
-    // Para mangas: ocultar fusiones pasantes cuando el IN y OUT son del mismo elemento
     renderFusions = fusions.filter(function(f) {
-      if (isNap) return true; // NAPs sin splices — mostrar pasantes como líneas
+      if (isNap) return true;
       var inCp = parseInt(f.cable_connection_id_in);
       var outCp = parseInt(f.cable_connection_id_out);
-      return !(inCp && outCp && cpIds.has(inCp) && cpIds.has(outCp));
+      // Solo ocultar si es loop-back (mismo cable_point IN y OUT)
+      // Fusiones entre DISTINTOS puntos (IN→OUT del mismo cable) SÍ se renderizan
+      return !(inCp && outCp && inCp === outCp);
     });
   } catch(e) {
     console.warn('No fusions for manga', mangaId);
