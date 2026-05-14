@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= locals.title || 'MapFiber - Diagramas de Fibra Óptica' %></title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/web/css/style.css">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
+</head>
+<body>
+  <!-- Navbar -->
+  <nav class="navbar">
+    <div class="container navbar-inner">
+      <a href="/web" class="logo">
+        <span class="logo-icon">⚡</span>
+        <span class="logo-text">Map<span class="text-cyan">Fiber</span> <span class="logo-tag">diagram</span></span>
+      </a>
+      <div class="nav-links">
+        <a href="/web" class="nav-link <% if (locals.webPath === '/web') { %>active<% } %>">Inicio</a>
+        <a href="/web/pricing" class="nav-link <% if (locals.webPath === '/web/pricing') { %>active<% } %>">Planes</a>
+        <a href="/web/tutorials" class="nav-link <% if (locals.webPath && locals.webPath.startsWith('/web/tutorials')) { %>active<% } %>">Tutoriales</a>
+        <% if (locals.webUser) { %>
+          <a href="/web/dashboard" class="nav-link dashboard-link">
+            <span class="dashboard-icon">📊</span> Dashboard
+          </a>
+          <a href="/web/auth/logout" class="nav-link btn-logout">Salir</a>
+        <% } else { %>
+          <a href="/web/auth/login" class="nav-link btn-login">Ingresar</a>
+          <a href="/web/auth/register" class="nav-link btn-primary">Contratar</a>
+        <% } %>
+      </div>
+      <button class="menu-toggle" id="menuToggle" aria-label="Menú">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- Mobile Menu -->
+  <div class="mobile-menu" id="mobileMenu">
+    <a href="/web" class="mobile-link">Inicio</a>
+    <a href="/web/pricing" class="mobile-link">Planes</a>
+    <a href="/web/tutorials" class="mobile-link">Tutoriales</a>
+    <% if (locals.webUser) { %>
+      <a href="/web/dashboard" class="mobile-link">Dashboard</a>
+      <a href="/web/auth/logout" class="mobile-link">Salir</a>
+    <% } else { %>
+      <a href="/web/auth/login" class="mobile-link">Ingresar</a>
+      <a href="/web/auth/register" class="mobile-link btn-primary">Contratar</a>
+    <% } %>
+  </div>
+
+  <!-- Main Content -->
+  <main>
+    <%- body %>
+  </main>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-brand">
+          <span class="logo-text">Map<span class="text-cyan">Fiber</span></span>
+          <p class="footer-desc">Crea diagramas de red con fibra óptica. Despliega hasta 60 km de cable. Iconos ilimitados para todos tus equipos de red.</p>
+        </div>
+        <div class="footer-links">
+          <h4>Producto</h4>
+          <a href="/web/pricing">Planes</a>
+          <a href="/web/tutorials">Tutoriales</a>
+          <a href="#">Cobertura</a>
+        </div>
+        <div class="footer-links">
+          <h4>Soporte</h4>
+          <a href="#">Centro de Ayuda</a>
+          <a href="#">Contacto</a>
+          <a href="#">Estado del Servicio</a>
+        </div>
+        <div class="footer-links">
+          <h4>Legal</h4>
+          <a href="#">Términos</a>
+          <a href="#">Privacidad</a>
+          <a href="#">Cookies</a>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <p>&copy; <%= new Date().getFullYear() %> MapFiber. Todos los derechos reservados. RD.</p>
+      </div>
+    </div>
+  </footer>
+
+  <script src="/web/js/main.js"></script>
+</body>
+</html>

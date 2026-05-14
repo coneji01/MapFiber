@@ -1,0 +1,137 @@
+<section class="section pricing-section">
+  <div class="container">
+    <div class="section-header">
+      <span class="section-tag">Planes</span>
+      <h2 class="section-title">Elige Tu <span class="text-gradient">Plan</span></h2>
+      <p class="section-desc">Kilometraje de fibra óptica según tus necesidades. Iconos ilimitados en todos los planes.</p>
+    </div>
+
+    <div class="pricing-grid" id="pricingGrid">
+      <!-- Básico -->
+      <div class="pricing-card glass-card">
+        <div class="pricing-header">
+          <h3>Básico</h3>
+          <p class="pricing-sub">Para proyectos pequeños</p>
+        </div>
+        <div class="pricing-price">
+          <span class="price">$10</span>
+          <span class="period">/mes</span>
+        </div>
+        <div class="pricing-km-badge">20 km de fibra</div>
+        <ul class="pricing-features">
+          <li><span class="check">✓</span> <strong>20 km</strong> de cable de fibra óptica</li>
+          <li><span class="check">✓</span> Iconos ilimitados en el diagrama</li>
+          <li><span class="check">✓</span> Editor de diagramas interactivo</li>
+          <li><span class="check">✓</span> Soporte estándar por email</li>
+          <li class="muted"><span class="cross">✗</span> Exportación avanzada</li>
+          <li class="muted"><span class="cross">✗</span> Soporte prioritario</li>
+        </ul>
+        <% if (locals.webUser) { %>
+          <button class="btn btn-primary btn-block subscribe-btn" data-plan="basico">Contratar</button>
+        <% } else { %>
+          <a href="/web/auth/register" class="btn btn-primary btn-block">Contratar</a>
+        <% } %>
+      </div>
+
+      <!-- Profesional (Featured) -->
+      <div class="pricing-card glass-card featured">
+        <div class="pricing-badge">Más Popular</div>
+        <div class="pricing-header">
+          <h3>Profesional</h3>
+          <p class="pricing-sub">Para proyectos medianos</p>
+        </div>
+        <div class="pricing-price">
+          <span class="price">$20</span>
+          <span class="period">/mes</span>
+        </div>
+        <div class="pricing-km-badge">40 km de fibra</div>
+        <ul class="pricing-features">
+          <li><span class="check">✓</span> <strong>40 km</strong> de cable de fibra óptica</li>
+          <li><span class="check">✓</span> Iconos ilimitados en el diagrama</li>
+          <li><span class="check">✓</span> Editor de diagramas interactivo</li>
+          <li><span class="check">✓</span> Soporte prioritario 24/7</li>
+          <li><span class="check">✓</span> Exportación avanzada (PDF, SVG)</li>
+          <li><span class="check">✓</span> Historial de versiones</li>
+        </ul>
+        <% if (locals.webUser) { %>
+          <button class="btn btn-primary btn-block subscribe-btn" data-plan="profesional">Contratar</button>
+        <% } else { %>
+          <a href="/web/auth/register" class="btn btn-primary btn-block">Contratar</a>
+        <% } %>
+      </div>
+
+      <!-- Enterprise -->
+      <div class="pricing-card glass-card">
+        <div class="pricing-header">
+          <h3>Enterprise</h3>
+          <p class="pricing-sub">Máximo despliegue</p>
+        </div>
+        <div class="pricing-price">
+          <span class="price">$30</span>
+          <span class="period">/mes</span>
+        </div>
+        <div class="pricing-km-badge">60 km de fibra</div>
+        <ul class="pricing-features">
+          <li><span class="check">✓</span> <strong>60 km</strong> de cable de fibra óptica</li>
+          <li><span class="check">✓</span> Iconos ilimitados en el diagrama</li>
+          <li><span class="check">✓</span> Editor de diagramas interactivo</li>
+          <li><span class="check">✓</span> Soporte VIP 24/7 dedicado</li>
+          <li><span class="check">✓</span> Exportación avanzada (PDF, SVG, CAD)</li>
+          <li><span class="check">✓</span> Historial de versiones + backups</li>
+        </ul>
+        <% if (locals.webUser) { %>
+          <button class="btn btn-primary btn-block subscribe-btn" data-plan="enterprise">Contratar</button>
+        <% } else { %>
+          <a href="/web/auth/register" class="btn btn-primary btn-block">Contratar</a>
+        <% } %>
+      </div>
+    </div>
+
+    <div class="pricing-faq glass-card">
+      <h3>Preguntas Frecuentes</h3>
+      <div class="faq-list">
+        <div class="faq-item">
+          <button class="faq-question">¿Qué significa "km de fibra óptica"? <span class="faq-icon">+</span></button>
+          <div class="faq-answer">
+            <p>Es la longitud total de cable de fibra óptica que puedes desplegar en tus diagramas. Cada conexión entre equipos consume cierta cantidad de kilómetros según la distancia que represente. Puedes agregar todos los iconos que quieras, el límite es el kilometraje total del cable.</p>
+          </div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-question">¿Puedo tener iconos ilimitados? <span class="faq-icon">+</span></button>
+          <div class="faq-answer">
+            <p>Sí. En todos los planes puedes agregar todos los iconos de equipos de red que necesites (routers, switches, servidores, ONTs, etc.). El límite está en el cable, no en los equipos.</p>
+          </div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-question">¿Puedo cambiar de plan después? <span class="faq-icon">+</span></button>
+          <div class="faq-answer">
+            <p>Sí, puedes cambiar a un plan superior en cualquier momento para obtener más kilometraje. El cambio es inmediato y solo pagas la diferencia.</p>
+          </div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-question">¿Cómo funcionan los pagos? <span class="faq-icon">+</span></button>
+          <div class="faq-answer">
+            <p>Aceptamos tarjetas de crédito/débito vía PayPal. Los pagos son mensuales y puedes cancelar cuando quieras sin penalización.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- PayPal Modal -->
+<div class="modal" id="paypalModal">
+  <div class="modal-backdrop"></div>
+  <div class="modal-content glass-card">
+    <div class="modal-header">
+      <h3>Completar Pago</h3>
+      <button class="modal-close" id="modalClose">&times;</button>
+    </div>
+    <div class="modal-body">
+      <p id="modalPlanInfo">Procesando tu suscripción...</p>
+      <div id="paypal-button-container"></div>
+    </div>
+  </div>
+</div>
+
+<script src="https://www.paypal.com/sdk/js?client-id=<%= process.env.PAYPAL_CLIENT_ID || 'sb' %>&vault=true&intent=subscription" data-namespace="paypal_sdk"></script>

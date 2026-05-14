@@ -1,0 +1,62 @@
+<% if (locals.tutorial) { %>
+<section class="section tutorial-single">
+  <div class="container">
+    <div class="tutorial-breadcrumb">
+      <a href="/">Inicio</a>
+      <span>/</span>
+      <a href="/web/tutorials">Tutoriales</a>
+      <span>/</span>
+      <span><%= tutorial.title %></span>
+    </div>
+
+    <article class="tutorial-article glass-card">
+      <div class="tutorial-article-header">
+        <span class="tutorial-category-badge"><%= tutorial.category %></span>
+        <h1><%= tutorial.title %></h1>
+        <div class="tutorial-meta">
+          <span>📅 <%= new Date(tutorial.created_at).toLocaleDateString('es-DO', { year: 'numeric', month: 'long', day: 'numeric' }) %></span>
+        </div>
+      </div>
+
+      <% if (tutorial.video_url) { %>
+      <div class="tutorial-video">
+        <div class="video-wrapper">
+          <iframe src="<%= tutorial.video_url %>" title="<%= tutorial.title %>" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+        </div>
+      </div>
+      <% } %>
+
+      <div class="tutorial-content">
+        <%- tutorial.content %>
+      </div>
+    </article>
+
+    <!-- Related Tutorials -->
+    <% if (locals.related && related.length > 0) { %>
+    <div class="related-tutorials">
+      <h2>Tutoriales Relacionados</h2>
+      <div class="related-grid">
+        <% related.forEach(r => { %>
+          <a href="/web/tutorials/<%= r.slug %>" class="tutorial-card glass-card">
+            <div class="tutorial-card-body">
+              <h3><%= r.title %></h3>
+              <p><%= r.description %></p>
+            </div>
+          </a>
+        <% }) %>
+      </div>
+    </div>
+    <% } %>
+  </div>
+</section>
+<% } else { %>
+<section class="section">
+  <div class="container">
+    <div class="empty-state">
+      <h2>Tutorial no encontrado</h2>
+      <p>El tutorial que buscas no existe o ha sido eliminado.</p>
+      <a href="/web/tutorials" class="btn btn-primary">Ver Tutoriales</a>
+    </div>
+  </div>
+</section>
+<% } %>

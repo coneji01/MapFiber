@@ -1,0 +1,48 @@
+<section class="section tutorials-section">
+  <div class="container">
+    <div class="section-header">
+      <span class="section-tag">Aprende</span>
+      <h2 class="section-title">Tutoriales <span class="text-gradient">MapFiber</span></h2>
+      <p class="section-desc">Guías y consejos para sacarle el máximo provecho a tu conexión.</p>
+    </div>
+
+    <!-- Category filter -->
+    <div class="tutorial-filters">
+      <a href="/web/tutorials" class="filter-btn <%= !locals.activeCategory ? 'active' : '' %>">Todos</a>
+      <% categories.forEach(c => { %>
+        <a href="/web/tutorials?category=<%= c.category %>" class="filter-btn <%= activeCategory === c.category ? 'active' : '' %>">
+          <%= c.category.charAt(0).toUpperCase() + c.category.slice(1) %>
+        </a>
+      <% }) %>
+    </div>
+
+    <!-- Tutorial Grid -->
+    <div class="tutorial-grid">
+      <% if (tutorials.length > 0) { %>
+        <% tutorials.forEach(t => { %>
+          <a href="/web/tutorials/<%= t.slug %>" class="tutorial-card glass-card">
+            <div class="tutorial-card-thumb">
+              <div class="tutorial-thumb-placeholder">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+              </div>
+              <span class="tutorial-category"><%= t.category %></span>
+            </div>
+            <div class="tutorial-card-body">
+              <h3><%= t.title %></h3>
+              <p><%= t.description %></p>
+              <div class="tutorial-card-meta">
+                <span><%= new Date(t.created_at).toLocaleDateString('es-DO', { year: 'numeric', month: 'short', day: 'numeric' }) %></span>
+                <span class="read-more">Leer más →</span>
+              </div>
+            </div>
+          </a>
+        <% }) %>
+      <% } else { %>
+        <div class="empty-state">
+          <p>No hay tutoriales en esta categoría todavía.</p>
+          <a href="/web/tutorials" class="btn btn-outline">Ver todos</a>
+        </div>
+      <% } %>
+    </div>
+  </div>
+</section>

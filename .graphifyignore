@@ -1,0 +1,2 @@
+# Skip markdown and doc files (no LLM key available)
+*.md

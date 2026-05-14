@@ -1,0 +1,10 @@
+node_modules/
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+database.sqlite
+*.db.backup-*
+.env
+smartolt-api.json
+graphify-out/

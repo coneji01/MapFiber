@@ -1,0 +1,116 @@
+<section class="section dashboard-section">
+  <div class="container">
+    <div class="dashboard-welcome">
+      <h1>Hola, <span class="text-gradient"><%= user.name || user.email.split('@')[0] %></span></h1>
+      <p>Bienvenido a tu panel MapFiber</p>
+    </div>
+
+    <!-- Subscription Status -->
+    <div class="dashboard-grid">
+      <div class="dashboard-card glass-card">
+        <div class="card-header">
+          <h3><span class="card-icon">🛡️</span> Mi Suscripción</h3>
+        </div>
+        <% if (locals.subscription) { %>
+          <div class="subscription-info">
+            <div class="status-badge <%= subscription.status %>">
+              <%= subscription.status === 'active' ? '✅ Activo' : subscription.status === 'cancelled' ? '❌ Cancelado' : '⏳ Inactivo' %>
+            </div>
+            <div class="sub-detail">
+              <span class="sub-label">Plan</span>
+              <span class="sub-value"><%= subscription.plan === 'basico' ? 'Básico' : subscription.plan === 'profesional' ? 'Profesional' : 'Enterprise' %></span>
+            </div>
+            <div class="sub-detail">
+              <span class="sub-label">Límite de fibra</span>
+              <span class="sub-value"><%= subscription.km_limit %> km</span>
+            </div>
+            <div class="sub-detail">
+              <span class="sub-label">Fibra utilizada</span>
+              <span class="sub-value"><%= subscription.fiber_km_used %> km</span>
+            </div>
+            <div class="sub-detail">
+              <span class="sub-label">Fibra disponible</span>
+              <span class="sub-value"><span class="text-green"><%= Math.max(0, subscription.km_limit - subscription.fiber_km_used) %> km</span></span>
+            </div>
+            <% if (subscription.current_period_end) { %>
+              <div class="sub-detail">
+                <span class="sub-label">Próximo pago</span>
+                <span class="sub-value"><%= new Date(subscription.current_period_end).toLocaleDateString('es-DO', { year: 'numeric', month: 'long', day: 'numeric' }) %></span>
+              </div>
+            <% } %>
+
+            <!-- Fiber usage bar -->
+            <div class="fiber-bar-container">
+              <div class="fiber-bar-label">
+                <span>Uso de fibra</span>
+                <span><%= Math.round((subscription.fiber_km_used / subscription.km_limit) * 100) %>%</span>
+              </div>
+              <div class="fiber-bar">
+                <div class="fiber-bar-fill" style="width: <%= Math.min(100, (subscription.fiber_km_used / subscription.km_limit) * 100) %>%"></div>
+              </div>
+            </div>
+
+            <% if (subscription.status === 'active') { %>
+              <form action="/api/web/paypal/cancel" method="POST" class="cancel-form" onsubmit="return confirm('¿Estás seguro de cancelar tu suscripción? Perderás acceso a tus diagramas.');">
+                <button type="submit" class="btn btn-danger btn-sm">Cancelar Suscripción</button>
+              </form>
+            <% } %>
+          </div>
+        <% } else { %>
+          <div class="no-subscription">
+            <p>No tienes una suscripción activa.</p>
+            <a href="/web/pricing" class="btn btn-primary">Ver Planes</a>
+          </div>
+        <% } %>
+      </div>
+
+      <div class="dashboard-card glass-card">
+        <div class="card-header">
+          <h3><span class="card-icon">📐</span> Mi Diagrama</h3>
+        </div>
+        <div class="connection-info">
+          <div class="conn-stat">
+            <span class="conn-value"><%= locals.subscription ? subscription.km_limit : '---' %></span>
+            <span class="conn-label">km Límite</span>
+          </div>
+          <div class="conn-stat">
+            <span class="conn-value"><%= locals.subscription ? subscription.fiber_km_used : '---' %></span>
+            <span class="conn-label">km Usados</span>
+          </div>
+          <div class="conn-stat">
+            <span class="conn-value"><%= locals.subscription ? Math.round((1 - subscription.fiber_km_used / Math.max(1, subscription.km_limit)) * 100) : '---' %>%</span>
+            <span class="conn-label">Disponible</span>
+          </div>
+        </div>
+        <% if (locals.subscription) { %>
+          <a href="/web/dashboard/diagram" class="btn btn-outline btn-sm">Abrir Editor</a>
+        <% } %>
+      </div>
+
+      <div class="dashboard-card glass-card dashboard-card-wide">
+        <div class="card-header">
+          <h3><span class="card-icon">📚</span> Tutoriales Recientes</h3>
+          <a href="/web/tutorials" class="btn btn-outline btn-xs">Ver Todos</a>
+        </div>
+        <div class="tutorial-list">
+          <% if (locals.tutorials && tutorials.length > 0) { %>
+            <% tutorials.forEach(t => { %>
+              <a href="/web/tutorials/<%= t.slug %>" class="tutorial-item">
+                <div class="tutorial-item-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                </div>
+                <div class="tutorial-item-content">
+                  <strong><%= t.title %></strong>
+                  <span><%= t.category %></span>
+                </div>
+                <svg class="tutorial-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+              </a>
+            <% }) %>
+          <% } else { %>
+            <p class="empty-text">No hay tutoriales disponibles aún.</p>
+          <% } %>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>

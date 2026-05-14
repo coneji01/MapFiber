@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html><head><title>Debug Click</title></head>
+<body>
+<h2>🔧 Debug de Click Handler</h2>
+<p>Abre la manga visualizer, luego abre la consola (F12) y haz clics. Busca [CLICK] en la consola.</p>
+<p>Pepega la información que ves aquí:</p>
+<div id="log" style="background:#1a1a2e;color:#00ff88;font-family:monospace;padding:16px;max-height:80vh;overflow:auto;white-space:pre-wrap;font-size:12px"></div>
+
+<script>
+const API = '/api';
+const logDiv = document.getElementById('log');
+
+// Patch showToast to also log
+const origShowToast = window.showToast;
+if (origShowToast) {
+  window.showToast = function(msg) {
+    logDiv.textContent += '🔔 TOAST: ' + msg + '\n';
+    return origShowToast(msg);
+  };
+}
+
+// Monitor state changes
+let stateCheck = setInterval(() => {
+  if (window.state) {
+    clearInterval(stateCheck);
+    logDiv.textContent += '✅ state found\n';
+    
+    // Watch state.fusionSelection
+    let lastSelection = null;
+    setInterval(() => {
+      const cur = window.state.fusionSelection;
+      if (JSON.stringify(cur) !== JSON.stringify(lastSelection)) {
+        lastSelection = cur;
+        logDiv.textContent += '📌 state.fusionSelection: ' + JSON.stringify(cur) + '\n';
+        logDiv.scrollTop = logDiv.scrollHeight;
+      }
+    }, 200);
+  }
+}, 500);
+
+logDiv.textContent += 'Esperando state...\n';
+
+// Override console.log to capture [CLICK] and [SPLICE] messages
+const origLog = console.log;
+console.log = function(...args) {
+  const msg = args.join(' ');
+  if (msg.includes('[CLICK]') || msg.includes('[SPLICE]') || msg.includes('[SPLICE DEBUG]')) {
+    logDiv.textContent += '🟢 ' + msg + '\n';
+    logDiv.scrollTop = logDiv.scrollHeight;
+  }
+  origLog.apply(console, args);
+};
+
+console.error = function(...args) {
+  const msg = args.join(' ');
+  if (msg.includes('[CLICK]') || msg.includes('[SPLICE]')) {
+    logDiv.textContent += '🔴 ' + msg + '\n';
+    logDiv.scrollTop = logDiv.scrollHeight;
+  }
+  origLog.apply(console, args);
+};
+</script>
+<p>Instrucciones:</p>
+<ol>
+  <li>Abre la consola (F12 → Console) también</li>
+  <li>Haz click en una fibra de cable → busca [CLICK] FIRST CLICK</li>
+  <li>Haz click en la entrada IN del splitter → busca [CLICK] SECOND CLICK</li>
+  <li>Dime exactamente qué ves en el div de arriba y en la consola</li>
+</ol>
+</body></html>

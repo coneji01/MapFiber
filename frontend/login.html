@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MapFiber — Login</title>
+  <link rel="stylesheet" href="css/style.css" />
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #1a1a2e; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+    .login-container { width: 100%; max-width: 420px; padding: 20px; }
+    .login-box { background: #16213e; border-radius: 16px; padding: 40px 32px; box-shadow: 0 20px 60px rgba(0,0,0,0.5); border: 1px solid #0f3460; }
+    .login-logo { text-align: center; margin-bottom: 30px; }
+    .login-logo h1 { color: #2196F3; font-size: 24px; font-weight: 700; }
+    .login-logo p { color: #888; font-size: 13px; margin-top: 4px; }
+    .login-form .form-group { margin-bottom: 20px; }
+    .login-form label { display: block; color: #aaa; font-size: 13px; margin-bottom: 6px; font-weight: 500; }
+    .login-form input { width: 100%; padding: 12px 16px; background: #0f3460; border: 1px solid #1a3a6b; border-radius: 8px; color: #fff; font-size: 14px; outline: none; transition: border-color 0.2s; }
+    .login-form input:focus { border-color: #2196F3; }
+    .login-form input::placeholder { color: #555; }
+    .login-btn { width: 100%; padding: 14px; background: linear-gradient(135deg, #2196F3, #1976D2); border: none; border-radius: 8px; color: #fff; font-size: 16px; font-weight: 600; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; margin-top: 8px; }
+    .login-btn:hover { transform: translateY(-1px); box-shadow: 0 8px 25px rgba(33,150,243,0.3); }
+    .login-btn:active { transform: translateY(0); }
+    .login-error { background: rgba(244,67,54,0.15); border: 1px solid rgba(244,67,54,0.3); color: #F44336; padding: 10px 14px; border-radius: 8px; font-size: 13px; margin-bottom: 16px; display: none; }
+    .login-language { text-align: center; margin-top: 20px; }
+    .lang-btn { display: inline-block; padding: 6px 12px; margin: 0 4px; border: 1px solid #333; border-radius: 4px; color: #888; font-size: 12px; cursor: pointer; transition: all 0.2s; background: transparent; }
+    .lang-btn:hover, .lang-btn.active { border-color: #2196F3; color: #2196F3; background: rgba(33,150,243,0.1); }
+    .login-footer { text-align: center; margin-top: 24px; color: #555; font-size: 12px; }
+    @media (max-width: 480px) { .login-box { padding: 24px 20px; } }
+  </style>
+</head>
+<body>
+  <div class="login-container">
+    <div class="login-box">
+      <div class="login-logo">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="#2196F3"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
+        <h1 data-i18n="login.title">MapFiber</h1>
+        <p data-i18n="login.subtitle">Gestión de Redes de Fibra Óptica</p>
+      </div>
+      <div class="login-error" id="login-error"></div>
+      <form class="login-form" id="login-form" onsubmit="return handleLogin(event)">
+        <div class="form-group">
+          <label for="company-id" data-i18n="login.company">Identificador de la empresa</label>
+          <input type="text" id="company-id" placeholder="ej: miempresa" autocomplete="off" />
+        </div>
+        <div class="form-group">
+          <label for="login-email" data-i18n="login.email">E-Mail</label>
+          <input type="email" id="login-email" placeholder="email@ejemplo.com" />
+        </div>
+        <div class="form-group">
+          <label for="login-password" data-i18n="login.password">Contraseña</label>
+          <input type="password" id="login-password" placeholder="••••••••" />
+        </div>
+        <button type="submit" class="login-btn" data-i18n="login.button">Entrar</button>
+      </form>
+      <div class="login-language">
+        <button class="lang-btn active" data-lang="es" onclick="setLanguage('es')">🇪🇸 ES</button>
+        <button class="lang-btn" data-lang="pt" onclick="setLanguage('pt')">🇧🇷 PT</button>
+        <button class="lang-btn" data-lang="en" onclick="setLanguage('en')">🇺🇸 EN</button>
+      </div>
+      <div class="login-footer">
+        MapFiber v2 &mdash; TOMODAT Style
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const LANGUAGES = {
+      es: {
+        'login.title': 'MapFiber',
+        'login.subtitle': 'Gestión de Redes de Fibra Óptica',
+        'login.company': 'Identificador de la empresa',
+        'login.email': 'E-Mail',
+        'login.password': 'Contraseña',
+        'login.button': 'Entrar',
+        'login.error.invalid': 'Credenciales inválidas. Verifica los datos.',
+        'login.error.server': 'Error de conexión. Intenta de nuevo.',
+        'login.error.empty': 'Completa todos los campos.'
+      },
+      pt: {
+        'login.title': 'MapFiber',
+        'login.subtitle': 'Gerenciamento de Redes de Fibra Óptica',
+        'login.company': 'Identificador da empresa',
+        'login.email': 'E-Mail',
+        'login.password': 'Senha',
+        'login.button': 'Entrar',
+        'login.error.invalid': 'Credenciais inválidas. Verifique os dados.',
+        'login.error.server': 'Erro de conexão. Tente novamente.',
+        'login.error.empty': 'Preencha todos os campos.'
+      },
+      en: {
+        'login.title': 'MapFiber',
+        'login.subtitle': 'Fiber Optic Network Management',
+        'login.company': 'Company Identifier',
+        'login.email': 'E-Mail',
+        'login.password': 'Password',
+        'login.button': 'Sign In',
+        'login.error.invalid': 'Invalid credentials. Please verify your data.',
+        'login.error.server': 'Connection error. Please try again.',
+        'login.error.empty': 'Please fill in all fields.'
+      }
+    };
+    
+    let currentLang = localStorage.getItem('ftth-lang') || 'es';
+    
+    function applyLanguage(lang) {
+      const dict = LANGUAGES[lang] || LANGUAGES.es;
+      document.querySelectorAll('[data-i18n]').forEach(function(el) {
+        const key = el.getAttribute('data-i18n');
+        if (dict[key]) el.textContent = dict[key];
+      });
+      document.querySelectorAll('.lang-btn').forEach(function(b) {
+        b.classList.toggle('active', b.dataset.lang === lang);
+      });
+      currentLang = lang;
+      localStorage.setItem('ftth-lang', lang);
+    }
+    
+    function setLanguage(lang) {
+      applyLanguage(lang);
+    }
+    
+    async function handleLogin(e) {
+      e.preventDefault();
+      const companyId = document.getElementById('company-id').value.trim();
+      const email = document.getElementById('login-email').value.trim();
+      const password = document.getElementById('login-password').value.trim();
+      const errorEl = document.getElementById('login-error');
+      
+      if (!companyId || !email || !password) {
+        errorEl.textContent = LANGUAGES[currentLang]['login.error.empty'];
+        errorEl.style.display = 'block';
+        return false;
+      }
+      
+      // Store company ID and redirect to main app
+      localStorage.setItem('ftth-company', companyId);
+      localStorage.setItem('ftth-email', email);
+      localStorage.setItem('ftth-lang', currentLang);
+      
+      // Redirect to main app
+      window.location.href = '/?company=' + encodeURIComponent(companyId);
+      return false;
+    }
+    
+    // Apply saved language on load
+    applyLanguage(currentLang);
+    
+    // Autofill if returning
+    const savedEmail = localStorage.getItem('ftth-email');
+    if (savedEmail) document.getElementById('login-email').value = savedEmail;
+  </script>
+</body>
+</html>

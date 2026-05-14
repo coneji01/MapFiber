@@ -1,0 +1,167 @@
+@startuml
+!theme materia
+
+' ============================================
+' ER Diagram — MapFiber V3
+' Modelo de mangas, hilos y splitters
+' Basado en la lógica real de MapFiber
+' ============================================
+
+skinparam backgroundColor #2d323e
+skinparam componentStyle rectangle
+skinparam defaultTextColor #e0e0e0
+skinparam arrowColor #4CAF50
+skinparam package {
+    BorderColor #2196F3
+    BackgroundColor #3a3f4b
+    FontColor #e0e0e0
+}
+
+' --- ENTITIES ---
+
+entity "MANGA\n(cierres de empalme)" as manga {
+    * id : INTEGER PK
+    --
+    name : TEXT
+    lat : REAL
+    lng : REAL
+    tipo_manga : TEXT
+    description : TEXT
+    created_at : DATETIME
+}
+
+entity "CABLE\n(cable de fibra óptica)" as cable {
+    * id : INTEGER PK
+    --
+    name : TEXT
+    fiber_count : INTEGER
+    length_m : REAL
+    cable_type : TEXT
+    color : TEXT
+    created_at : DATETIME
+}
+
+entity "ENTRADA_CABLE_MANGA\n(N cable por manga)" as entrada_cable_manga {
+    * id : INTEGER PK
+    --
+    * manga_id : INTEGER FK
+    * cable_id : INTEGER FK
+    tipo : TEXT
+    cable_continuacion_id : INTEGER FK
+    created_at : DATETIME
+}
+
+entity "HILO_DENTRO_MANGA\n⭐ EL CORAZÓN" as hilo_dentro_manga {
+    * id : INTEGER PK
+    --
+    * entrada_cable_manga_id : INTEGER FK
+    * numero_hilo : INTEGER
+    color_hilo : TEXT
+    --
+    estado : TEXT
+    ║ pasante
+    ║ fusionado_fibra
+    ║ fusionado_splitter
+    ║ terminado
+    ║ roto
+    --
+    fusionado_a_hilo_id : INTEGER FK
+    splitter_id : INTEGER FK
+    splitter_puerto : INTEGER
+    potencia_db : REAL
+    tiene_potencia : INTEGER
+    perdida_db : REAL
+    created_at : DATETIME
+}
+
+entity "SPLITTER\n(dentro de manga)" as splitter {
+    * id : INTEGER PK
+    --
+    * manga_id : INTEGER FK
+    nombre : TEXT
+    tipo_split : TEXT
+    ║ 1:4, 1:8, 1:16
+    ║ 1:32, 1:64
+    puertos : INTEGER
+    perdida_db : REAL
+    hilo_entrada_id : INTEGER FK
+    created_at : DATETIME
+}
+
+entity "CABLE_TRAMO\n(segmento entre mangas)" as cable_tramo {
+    * id : INTEGER PK
+    --
+    * cable_origen_id : INTEGER FK
+    nombre_tramo : TEXT
+    manga_inicio_id : INTEGER FK
+    manga_fin_id : INTEGER FK
+    longitud_metros : REAL
+    hilos_presentes : TEXT (JSON)
+    potencia_entrada_db : REAL
+    potencia_salida_db : REAL
+    created_at : DATETIME
+}
+
+entity "MICHELLE_GRUPO\n(sangrado de hilos)" as michelle_grupo {
+    * id : INTEGER PK
+    --
+    * manga_id : INTEGER FK
+    nombre : TEXT
+    splitter_id : INTEGER FK
+    hilos_cortados : INTEGER
+    hilos_pasantes : INTEGER
+    created_at : DATETIME
+}
+
+' --- RELATIONSHIPS ---
+
+manga ||--o{ entrada_cable_manga : "1 → N\ncontiene"
+cable ||--o{ entrada_cable_manga : "1 → N\nentra/sale"
+entrada_cable_manga ||--o{ hilo_dentro_manga : "1 → N\ntiene hilos"
+
+hilo_dentro_manga ||--o| splitter : "N → 1\nconectado a"
+splitter ||--o| hilo_dentro_manga : "1 → N\ntiene hilo entrada"
+
+hilo_dentro_manga ||--o| hilo_dentro_manga : "se fusiona a\n(self ref)"
+
+manga ||--o{ splitter : "1 → N\ncontiene"
+manga ||--o{ michelle_grupo : "1 → N\ntiene"
+
+cable ||--o{ cable_tramo : "1 → N\nse divide en"
+manga ||--o{ cable_tramo : "1 → N\nes inicio/fin"
+
+' --- NOTES ---
+
+note right of hilo_dentro_manga
+  **⭐ ESTADOS DE HILO**
+  
+  **pasante** → No se toca
+  ~~~~~~~~~~~~  Sigue intacto
+  
+  **fusionado_fibra** → 
+  ~~~~~~~~~~~~~~~~   Empalme cable→cable
+  
+  **fusionado_splitter** →
+  ~~~~~~~~~~~~~~~~~~~~  Conectado a splitter
+  
+  **terminado** → Punta suelta
+  ~~~~~~~~~~~~~  Sin fusionar
+  
+  **roto** → Deshecho
+  ~~~~~~~~  Irreversible
+end note
+
+note right of splitter
+  **SPLITTER EN MANGA**
+  
+  Entrada: 1 hilo
+  Salidas: 4, 8, 16, 32 o 64
+  
+  Pérdida típica:
+  • 1:4  = 7.2 dB
+  • 1:8  = 10.5 dB
+  • 1:16 = 13.8 dB
+  • 1:32 = 16.5 dB
+end note
+
+@enduml

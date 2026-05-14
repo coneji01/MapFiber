@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html><body>
+<h2>MapFiber Debug - SVG Check</h2>
+<pre id="output"></pre>
+<script>
+const API = '/api';
+async function debug() {
+  const out = document.getElementById('output');
+  function log(t) { out.textContent += t + '\n'; }
+  
+  // Find manga with splitter
+  const mangas = await (await fetch(API + '/mangas')).json();
+  log('Mangas: ' + mangas.length);
+  
+  for (const m of mangas) {
+    const splitters = await (await fetch(API + '/mangas/' + m.id + '/splitters')).json();
+    const fibers = await (await fetch(API + '/mangas/' + m.id + '/fibers')).json();
+    const splices = await (await fetch(API + '/splices?manga_id=' + m.id)).json();
+    
+    log('\n--- Manga ' + m.id + ': ' + m.name + ' ---');
+    log('  Splitters: ' + splitters.length);
+    log('  Fibers: ' + fibers.length);
+    log('  Splices: ' + splices.length);
+    
+    for (const s of splices) {
+      log('  Splice #' + s.id + ': ' + s.fiber_a_type + '(id=' + s.fiber_a_id + ',port=' + s.fiber_a_port + ') ↔ ' + s.fiber_b_type + '(id=' + s.fiber_b_id + ',port=' + s.fiber_b_port + ')');
+      
+      // Check if manga_fiber exists
+      const mf = fibers.find(f => f.id == (s.fiber_a_type === 'manga_fiber' ? s.fiber_a_id : s.fiber_b_id));
+      log('    Manga fiber lookup: ' + (mf ? 'FOUND (fiber#' + mf.fiber_number + ', splitter_out=' + mf.splitter_output + ')' : 'NOT FOUND!'));
+    }
+    
+    // Check cable points
+    const cps = await (await fetch(API + '/cable-points?element_type=manga&element_id=' + m.id)).json();
+    log('  Cable points: ' + cps.length);
+    for (const cp of cps) {
+      log('    Point ID ' + cp.id + ': cable="' + (cp.cable_name || '?') + '"');
+    }
+    
+    // Check cable fibers for each cable point
+    for (const cp of cps) {
+      try {
+        const cableFibers = await (await fetch(API + '/cables/' + cp.cable_id + '/fibers')).json();
+        log('    Cable ' + cp.cable_id + ' fibers: ' + cableFibers.length + ' (first: #' + (cableFibers[0]?.fiber_number || 'none') + ')');
+      } catch(e) {
+        log('    Cable ' + cp.cable_id + ' fibers: ERROR ' + e.message);
+      }
+    }
+  }
+  
+  log('\n✅ Done');
+}
+debug().catch(e => log('ERROR: ' + e.message));
+</script>
+</body></html>

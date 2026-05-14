@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MapFiber — TOMODAT Style</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet.locatecontrol@0.79.0/dist/L.Control.Locate.min.css" />
+  
+  <!-- jsTree -->
+  <!-- jsTree CSS removed (not used) -->
+  
+  <!-- Estilos propios -->
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div id="app">
+    
+    <!-- ====== TOP BAR (TOMODAT style) ====== -->
+    <div id="topbar">
+      <div id="topbar-left">
+        <div id="logo">
+          <button id="toggle-sidebar" title="Toggle sidebar">☰</button>
+          <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%232196F3'%3E%3Cpath d='M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z'/%3E%3C/svg%3E" alt="MapFiber" style="height:28px;vertical-align:middle;margin-right:8px">
+          <span class="logo-text" data-i18n="login.title">MapFiber</span>
+        </div>
+        <div id="top-tabs">
+          <span class="top-tab active" onclick="switchTab('mapa')" id="tab-mapa">🗺 <span data-i18n="tab.map">Mapa</span></span>
+          <span class="top-tab" onclick="switchTab('dashboard')" id="tab-dashboard">📊 <span data-i18n="tab.dashboard">Dashboard</span></span>
+          <span class="top-tab" onclick="switchTab('comercial')" id="tab-comercial">👥 <span data-i18n="tab.comercial">Comercial</span></span>
+          <span class="top-tab" onclick="switchTab('monitor')" id="tab-monitor">📡 <span data-i18n="tab.monitor">Monitor</span></span>
+          <span class="top-tab" onclick="switchTab('ajustes')" id="tab-ajustes">⚙ <span data-i18n="tab.settings">Ajustes</span></span>
+        </div>
+      </div>
+      <div id="topbar-right">
+        <span id="stats-top">
+          <span class="stat"><span id="stat-olts">0</span> <span data-i18n="topbar.olts">OLTs</span></span>
+          <span class="stat"><span id="stat-naps">0</span> <span data-i18n="topbar.naps">NAPs</span></span>
+          <span class="stat"><span id="stat-mangas">0</span> <span data-i18n="topbar.mangas">Mangas</span></span>
+          <span class="stat"><span id="stat-cables">0</span> <span data-i18n="topbar.cables">Cables</span></span>
+          <span class="stat active-fibers"><span id="stat-active">0</span> ⚡</span>
+        </span>
+        <button class="top-btn" onclick="showNetworkHealth()" title="Salud de la Red" data-i18n="tooltip.health">❤️</button>
+        <button class="top-btn" onclick="showNetworkReport()" title="Reporte" data-i18n="tooltip.report">📊</button>
+        <button class="top-btn" onclick="showColorCodePanel()" title="Colores" data-i18n="tooltip.colors">🎨</button>
+        <button class="top-btn" onclick="showOnuDashboard()" title="ONUs" data-i18n="tooltip.onus">🏠</button>
+        <button class="top-btn" onclick="showCableCreator(null,null)" title="Agregar Cable" style="background:#e94560;color:#fff;font-weight:bold">🔌 Cable</button>
+        <select id="lang-selector" class="lang-select" onchange="changeLanguage(this.value)" data-i18n="tooltip.language">
+          <option value="es">🇪🇸 ES</option>
+          <option value="pt">🇧🇷 PT</option>
+          <option value="en">🇺🇸 EN</option>
+        </select>
+        <button class="top-btn logout-btn" onclick="handleLogout()" data-i18n="tooltip.logout" title="Cerrar sesión">🚪</button>
+      </div>
+    </div>
+
+    <!-- ====== MAIN CONTAINER ====== -->
+    <div id="main-container">
+      
+      <!-- ====== SIDEBAR (TOMODAT jstree style) ====== -->
+      <div id="sidebar">
+        <!-- Tree toolbar -->
+        <div id="tree-toolbar">
+          <input type="text" id="tree-filter" placeholder="🔍 Buscar..." oninput="filterTree(this.value)" />
+          <div id="tree-toolbar-btns">
+            <button class="tree-btn" onclick="showNewFolderDialog(null)" title="Nueva carpeta" style="background:#2196F3;color:#fff">📁 Carpeta</button>
+            <button class="tree-btn" onclick="showNewItemDialog()" title="Nuevo elemento">➕ Item</button>
+            <button class="tree-btn" onclick="collapseAllFolders()" title="Colapsar todo">◀</button>
+            <button class="tree-btn" onclick="expandAllFolders()" title="Expandir todo">▶</button>
+          </div>
+        </div>
+        
+        <!-- Tree container (jsTree-style) -->
+        <div id="tree-container">
+          <div id="tree-loading" class="loading-msg">Cargando...</div>
+        </div>
+        
+        <!-- Tree footer -->
+        <div id="tree-footer">
+          <span id="tree-count">0 elementos</span>
+          <span id="tree-active-folder" style="font-size:10px;color:#666">📌 Doble clic en carpeta para activarla</span>
+        </div>
+      </div>
+
+      <!-- ====== MAP (TOMODAT style) ====== -->
+      <div id="map-container">
+        <!-- Map tools overlay (TOMODAT style) -->
+        <div id="map-tools">
+          <button class="map-tool-btn" onclick="startDrawCable()" title="Dibujar cable">🔌</button>
+          <button class="map-tool-btn" onclick="showAddMarkerDialog()" title="Agregar elemento">➕</button>
+          <button class="map-tool-btn" onclick="startMeasure()" title="Medir distancia">📏</button>
+          <button class="map-tool-btn" onclick="map.locate({setView:true})" title="Mi ubicación">📍</button>
+          <div class="map-tool-divider"></div>
+          <button class="map-tool-btn" onclick="showCableFiberPreviewDialog()" title="Fibras">🧶</button>
+          <button class="map-tool-btn active" id="btn-auto-fit" onclick="autoFitMap()" title="Ajustar vista">⊞</button>
+        </div>
+        
+        <!-- Google-style loading -->
+        <div id="map-loading" class="hidden">
+          <div class="map-spinner"></div>
+          <span>Cargando mapa...</span>
+        </div>
+        
+        <div id="map"></div>
+      </div>
+    </div>
+
+    <!-- ====== MOBILE BOTTOM BAR ====== -->
+    <div id="mobile-bar" class="hidden">
+      <button class="mobile-btn" onclick="mobileShowAddOptions()">📦 Agregar NAP</button>
+    </div>
+
+    <!-- ====== AP VISUALIZER PANEL (TOMODAT style overlay) ====== -->
+    <div id="vis-panel" class="hidden">
+      <div id="vis-header">
+        <div id="vis-title-wrap">
+          <span id="vis-title">—</span>
+          <span id="vis-power-info"></span>
+        </div>
+        <div id="vis-actions">
+          <span id="vis-splitter-info"></span>
+          <button class="vis-close-btn" onclick="closeVisualizer()">✕</button>
+        </div>
+      </div>
+      <div id="vis-body">
+        <div id="vis-left">
+          <div id="vis-fibers-title">🧶 Fibras <span class="vis-toggle-left" onclick="toggleVisLeft()">◀ Ocultar</span></div>
+          <div id="vis-fibers"></div>
+        </div>
+        <div id="vis-svg-wrap">
+          <div id="vis-svg"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ====== MODAL OVERLAY ====== -->
+    <div id="modal-overlay" class="hidden" onclick="closeModal(event)">
+      <div id="modal-content" onclick="event.stopPropagation()">
+        <div id="modal-body"></div>
+      </div>
+    </div>
+
+    <!-- ====== CONTEXT MENUS & PANELS ====== -->
+    <div id="ctx-menu" class="ctx-menu hidden"></div>
+    <div id="ctx-fiber-menu" class="ctx-menu hidden">
+      <div class="ctx-item" onclick="contextRemoveFiber()">✂️ Desconectar fibra</div>
+      <div class="ctx-item" onclick="contextFiberInfo()">ℹ️ Ver información</div>
+    </div>
+    <div id="context-menu" class="ctx-menu hidden">
+      <div class="ctx-item" onclick="ctxAddOLT()">⚡ Agregar OLT</div>
+      <div class="ctx-item" onclick="ctxAddNAP()">📦 Agregar NAP</div>
+      <div class="ctx-item" onclick="ctxAddManga()">🧶 Agregar Manga</div>
+      <div class="ctx-divider"></div>
+      <div class="ctx-item" onclick="ctxStartCable()">🔌 Agregar Cable</div>
+    </div>
+    <div id="context-menu-tree" class="ctx-menu hidden">
+      <div class="ctx-item" id="ctx-add-folder" onclick="showNewFolderDialog(state.contextTarget?.id)">📁 Nueva carpeta</div>
+      <div class="ctx-item" id="ctx-add-item" onclick="contextAddItem()">➕ Nuevo elemento</div>
+      <div class="ctx-divider"></div>
+      <div class="ctx-item" id="ctx-remove-from-folder" onclick="contextRemoveFromFolder()" style="color:#FFC107">✂️ Quitar de carpeta</div>
+      <div class="ctx-item" id="ctx-delete-item" onclick="contextDeleteItem()" style="color:#F44336">🗑️ Eliminar elemento</div>
+      <div class="ctx-divider" id="ctx-divider-folder"></div>
+      <div class="ctx-item" id="ctx-clear-folder" onclick="contextClearFolder()" style="color:#FFC107">🧹 Vaciar carpeta</div>
+      <div class="ctx-item" id="ctx-delete-folder" onclick="contextDeleteFolderWithContents()" style="color:#F44336">💣 Eliminar carpeta y contenido</div>
+      <div class="ctx-divider"></div>
+      <div class="ctx-item" onclick="contextRename()">✏️ Renombrar</div>
+      <div class="ctx-item" onclick="contextDelete()">🗑️ Eliminar (solo carpeta)</div>
+    </div>
+    <div id="cable-panel" class="hidden">
+      <div id="cable-panel-header">
+        <span>🔌 Crear Cable</span>
+        <button class="panel-close-btn" onclick="cancelCableCreation()">✕</button>
+      </div>
+      <div id="cable-panel-content">
+        <div class="panel-section">
+          <label>Nombre</label>
+          <input id="cable-name" value="Cable-1" />
+        </div>
+        <div class="panel-section">
+          <label>Tipo de cable (estándar)</label>
+          <select id="cable-type-id" onchange="onCableTypeChange()">
+            <option value="">— Seleccionar tipo —</option>
+          </select>
+        </div>
+        <div class="panel-section">
+          <label>Hilos</label>
+          <input id="cable-fibers" type="number" value="12" min="1" />
+        </div>
+        <div class="panel-section">
+          <label>Tubos</label>
+          <input id="cable-tubes" type="number" value="4" min="1" />
+        </div>
+        <div class="panel-section">
+          <label>Tipo (texto libre)</label>
+          <input id="cable-type" value="Drop" placeholder="Ej: Troncal, Distribución, Drop" />
+        </div>
+        <div class="panel-section">
+          <label>Atenuación (dB/km)</label>
+          <input id="cable-atten" type="number" step="0.01" value="0.35" />
+        </div>
+        <div class="panel-section">
+          <label>Color</label>
+          <input id="cable-color" type="color" value="#3388ff" />
+        </div>
+        <div class="panel-section panel-flex-row">
+          <button class="btn-small" onclick="showFiberPreviewFromPanel()" title="Vista previa de colores de hilos">🎨 Hilos</button>
+        </div>
+        <hr class="panel-divider" />
+        <div class="panel-status" id="cable-status-text">💡 Clic en el mapa para empezar a trazar</div>
+        <div class="panel-buttons">
+          <button class="btn-primary" id="cable-btn-finish" onclick="finishCableDrawing()">✅ Guardar Cable</button>
+          <button class="btn-danger" onclick="cancelCableCreation()">🗑 Cancelar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SCRIPTS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/leaflet.locatecontrol@0.79.0/dist/L.Control.Locate.min.js"></script>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <!-- jsTree removed (not used, requires jQuery which isn't loaded) -->
+  <script src="js/animations.js?v=2"></script>
+  <script src="js/app.js?v=37"></script>
+</body>
+</html>
