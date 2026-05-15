@@ -5700,8 +5700,7 @@ async function openMangaVisualizer(mangaId, entityType) {
         const ferruleW = 10;
         const ferruleH = 12;
         svgLines += `<rect x="${ferruleX}" y="${fy - ferruleH/2}" width="${ferruleW}" height="${ferruleH}" rx="3" fill="#888" stroke="#666" stroke-width="1.5" opacity="0.9" />`;
-        var _isRightSide = _cablePairRight && !!_cablePairRight[cd.cableConnectionId];
-        var fiberHasPower = !_isRightSide && (
+        var fiberHasPower = (
           (_activePowerMap[cd.cableConnectionId] && _activePowerMap[cd.cableConnectionId][fi] === true) ||
           (hasFusion && Array.isArray(fusions) && fusions.some(f => 
             (parseInt(f.cable_connection_id_in) === cd.cableConnectionId && parseInt(f.fiber_in) === fi && (f.active_power === true || f.active_power === 1 || f.active_power === '1')) ||
@@ -5792,8 +5791,7 @@ async function openMangaVisualizer(mangaId, entityType) {
       const ferruleW = 10;
       const ferruleH = 12;
       svgLines += `<rect x="${ferruleX}" y="${fy - ferruleH/2}" width="${ferruleW}" height="${ferruleH}" rx="3" fill="#888" stroke="#666" stroke-width="1.5" opacity="0.9" />`;
-      var _isRightSide = _cablePairRight && !!_cablePairRight[cd.cableConnectionId];
-      var fiberHasPower = !_isRightSide && (
+      var fiberHasPower = (
         (_activePowerMap[cd.cableConnectionId] && _activePowerMap[cd.cableConnectionId][fi] === true) ||
         (hasFusion && Array.isArray(fusions) && fusions.some(f => 
           (parseInt(f.cable_connection_id_in) === cd.cableConnectionId && parseInt(f.fiber_in) === fi && (f.active_power === true || f.active_power === 1 || f.active_power === '1')) ||
@@ -5890,8 +5888,7 @@ async function openMangaVisualizer(mangaId, entityType) {
       const coreCol = (col === '#ffffff' || col === '#f5d442') ? '#333' : '#fff';
       svgLines += `<circle cx="${jacketX + jacketW/2}" cy="${fy}" r="5" fill="${coreCol}" opacity="0.9" class="fiber-core" />`;
       svgLines += `<rect x="${portX - 5}" y="${fy - 6}" width="10" height="12" rx="3" fill="#888" stroke="#666" stroke-width="1.5" opacity="0.9" />`;
-      var _isRightSide = _cablePairRight && !!_cablePairRight[cd.cableConnectionId];
-      var fiberHasPower = !_isRightSide && (
+      var fiberHasPower = (
         (_activePowerMap[cd.cableConnectionId] && _activePowerMap[cd.cableConnectionId][fi] === true) ||
         (hasFusion && Array.isArray(fusions) && fusions.some(f => 
           (parseInt(f.cable_connection_id_in) === cd.cableConnectionId && parseInt(f.fiber_in) === fi && (f.active_power === true || f.active_power === 1 || f.active_power === '1')) ||
