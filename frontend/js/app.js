@@ -5943,21 +5943,8 @@ async function openMangaVisualizer(mangaId, entityType) {
         leftCableId = connOut; leftFiberNum = fOut;
         rightCableId = connIn; rightFiberNum = fIn;
       } else if (powerIn && powerOut) {
-        // ⭐ Ambos tienen potencia: usar _cablePairLeft/Right
-        if (_cablePairLeft && _cablePairLeft[connIn]) {
-          leftCableId = connIn; leftFiberNum = fIn;
-          rightCableId = connOut; rightFiberNum = fOut;
-        } else if (_cablePairLeft && _cablePairLeft[connOut]) {
-          leftCableId = connOut; leftFiberNum = fOut;
-          rightCableId = connIn; rightFiberNum = fIn;
-        } else if (_cablePairRight && _cablePairRight[connIn]) {
-          leftCableId = connOut; leftFiberNum = fOut;
-          rightCableId = connIn; rightFiberNum = fIn;
-        } else if (_cablePairRight && _cablePairRight[connOut]) {
-          leftCableId = connIn; leftFiberNum = fIn;
-          rightCableId = connOut; rightFiberNum = fOut;
-        } else if (pointIn && pointOut) {
-          // Fallback: secuencia menor = mas cerca de OLT
+        // ⭐ Ambos tienen potencia: usar SECUENCIA (menor = mas cerca de OLT)
+        if (pointIn && pointOut) {
           if (parseInt(pointIn.sequence) <= parseInt(pointOut.sequence)) {
             leftCableId = connIn; leftFiberNum = fIn;
             rightCableId = connOut; rightFiberNum = fOut;
