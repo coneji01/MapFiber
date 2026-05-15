@@ -797,11 +797,7 @@ function syncPowerState() {
     // ⭐ TODAS las cable_fibers con este UID tienen power
     db.prepare('UPDATE cable_fibers SET active_power=1, power_level=? WHERE fiber_uid=?').run(powerLevel, cf.fiber_uid);
     
-    // ⭐ TODAS las splitter_fibers con este UID tienen power
-    db.prepare('UPDATE splitter_fibers SET active_power=1, power_level=? WHERE fiber_uid=?').run(powerLevel, cf.fiber_uid);
-    
-    // ⭐ TODAS las manga_fibers con este UID tienen power
-    db.prepare('UPDATE manga_fibers SET active_power=1, power_level=? WHERE fiber_uid=?').run(powerLevel, cf.fiber_uid);
+    // ⭐ splitter_fibers y manga_fibers SOLO reciben power via splice propagation (pasos 4-5)
     
     // ⭐ fiber_connections con este cable+fiber tienen power
     db.prepare('UPDATE fiber_connections SET active_power=1, power_level=? WHERE cable_id=? AND fiber_number=?').run(powerLevel, olt.cable_id, olt.fiber_number);
