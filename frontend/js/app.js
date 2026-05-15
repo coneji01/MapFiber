@@ -5242,6 +5242,13 @@ async function openMangaVisualizer(mangaId, entityType) {
         });
       }
       console.log('[POWER] Marked ' + hilosData.potencia.length + ' fiber points with power');
+    // ⭐ DEBUG: log _activePowerMap contents
+    var apmKeys = Object.keys(_activePowerMap);
+    console.log('[POWER-DEBUG] _activePowerMap contains', apmKeys.length, 'cable points:');
+    apmKeys.forEach(function(cid) {
+      var fibers = Object.keys(_activePowerMap[cid]).map(Number).sort();
+      console.log('  [POWER-DEBUG]   cp.id=' + cid + ' fibers:', JSON.stringify(fibers));
+    });
     }
   } catch(e) {
     console.log('hilos-con-potencia not available:', e.message);
@@ -5310,10 +5317,12 @@ async function openMangaVisualizer(mangaId, entityType) {
         } else if (s.fiber_a_type === 'manga_fiber' && s.fiber_b_type === 'cable_fiber') {
           cableConnId = parseInt(s.fiber_b_id); cablePort = parseInt(s.fiber_b_port); mangaFiberId = parseInt(s.fiber_a_id);
         }
+        console.log('[SPLICE-PROP] Checking: cableConnId=' + cableConnId + ' port=' + cablePort + ' mfId=' + mangaFiberId + ' hasPower=' + !!(_activePowerMap[cableConnId] && _activePowerMap[cableConnId][cablePort]));
         if (cableConnId && mangaFiberId && _activePowerMap[cableConnId] && _activePowerMap[cableConnId][cablePort]) {
           // Encontrar la manga_fiber y marcarle potencia
           var mf = fibers.find(function(f) { return f.id == mangaFiberId; });
           if (mf) {
+            console.log('[SPLICE-PROP] SETTING mf.id=' + mangaFiberId + ' active_power=true (from cp.id=' + cableConnId + ' fiber=' + cablePort + ')');
             mf.active_power = true;
             // Usar el power_level de la fiber_connection o un valor por defecto
             var fcPower = null;
@@ -6123,7 +6132,8 @@ async function openMangaVisualizer(mangaId, entityType) {
         (s.fiber_b_type === 'manga_fiber' && s.fiber_b_id === inputMangaFiberId)
       ))
     );
-    var inputHasActivePower = splitterInputFibers[0] && (splitterInputFibers[0].active_power === 1 || splitterInputFibers[0].active_power === true || splitterInputFibers[0].active_power === '1');
+    console.log('[SPLITTER-RENDER] Input fiber:', splitterInputFibers[0] ? 'id=' + splitterInputFibers[0].id + ' splitterOutput=' + splitterInputFibers[0].splitter_output + ' active_power=' + splitterInputFibers[0].active_power : 'null');
+var inputHasActivePower = splitterInputFibers[0] && (splitterInputFibers[0].active_power === 1 || splitterInputFibers[0].active_power === true || splitterInputFibers[0].active_power === '1');
     var inputPowerClass = !inputHasFusion && inputHasActivePower ? ' fiber-powered' : '';
     
     // Pigtail jacket pointing INTO the triangle
