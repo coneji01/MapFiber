@@ -3413,7 +3413,20 @@ app.delete('/api/fusions/:id', (req, res) => {
 
 
   
-    syncPowerState();
+    // ⭐ Dividir fiber_uid: cada lado ahora es un hilo diferente
+  if (fusion.cable_in_id && fusion.fiber_in) {
+    var cfIn = db.prepare('SELECT * FROM cable_fibers WHERE cable_id=? AND fiber_number=?').get(fusion.cable_in_id, fusion.fiber_in);
+    if (cfIn && cfIn.fiber_uid) {
+      db.prepare('UPDATE cable_fibers SET fiber_uid=? WHERE cable_id=? AND fiber_number=?').run('fiber-' + Date.now() + '-' + fusion.cable_in_id + '-' + fusion.fiber_in, fusion.cable_in_id, fusion.fiber_in);
+    }
+  }
+  if (fusion.cable_out_id && fusion.fiber_out) {
+    var cfOut = db.prepare('SELECT * FROM cable_fibers WHERE cable_id=? AND fiber_number=?').get(fusion.cable_out_id, fusion.fiber_out);
+    if (cfOut && cfOut.fiber_uid) {
+      db.prepare('UPDATE cable_fibers SET fiber_uid=? WHERE cable_id=? AND fiber_number=?').run('fiber-' + Date.now() + '-' + fusion.cable_out_id + '-' + fusion.fiber_out, fusion.cable_out_id, fusion.fiber_out);
+    }
+  }
+  syncPowerState();
   db.prepare('DELETE FROM fusions WHERE id=?').run(req.params.id);
   res.json({ success: true, message: 'Empalme eliminado' });
 });
