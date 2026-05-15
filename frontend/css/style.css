@@ -873,7 +873,7 @@ body {
 }
 
 .fl.data-flow {
-  stroke-dasharray: 16 4;
+  stroke-dasharray: 16 5;
   animation: dataFlow 0.8s linear infinite;
   stroke-opacity: 0.85;
 }
