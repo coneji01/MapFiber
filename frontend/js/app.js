@@ -5405,8 +5405,9 @@ async function openMangaVisualizer(mangaId, entityType) {
           console.log('[POWER-CLEANUP] Clearing mf.id=' + smfId + ' active_power (cp.id=' + scId + ' fiber=' + scPort + ' no tiene potencia)');
           mfClean.active_power = 0;
           mfClean.power_level = null;
-          // Also clear all splitter outputs
-          if (mfClean.splitter_id) {
+          // ⭐ Solo limpiar outputs si es el INPUT (splitter_output=0) el que perdió potencia
+          // Si es un OUTPUT, solo limpiar ese output, no cascadear a todos
+          if (mfClean.splitter_id && (mfClean.splitter_output === 0 || mfClean.splitter_output === '0')) {
             fibers.forEach(function(fo) {
               if (fo.splitter_id == mfClean.splitter_id && fo.splitter_output > 0) {
                 fo.active_power = 0;
