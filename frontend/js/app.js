@@ -6393,10 +6393,13 @@ var inputHasActivePower = splitterInputFibers[0] && (splitterInputFibers[0].acti
         // Si ambos o ninguno tienen power, mantener direccion original
         
         const cpOff = Math.abs((toX - fromX)) * 0.3;
+        // ⭐ Curva en direccion correcta: control points hacia el CENTRO
+        const scpx1 = fromX < toX ? fromX + cpOff : fromX - cpOff;
+        const scpx2 = fromX < toX ? toX - cpOff : toX + cpOff;
         const hasPower = splitterHasPower || cableFiberPower;
         const activeClass = hasPower ? 'data-flow' : '';
         
-        svgLines += `<path class="fl ${activeClass}" d="M ${fromX},${fromY} C ${fromX + cpOff},${fromY} ${toX - cpOff},${toY} ${toX},${toY}" 
+        svgLines += `<path class="fl ${activeClass}" d="M ${fromX},${fromY} C ${scpx1},${fromY} ${scpx2},${toY} ${toX},${toY}" 
           stroke="${strokeVal}" stroke-width="3.5" opacity="1" fill="none" 
           data-splice="${splice.id}" data-fiber-in="${cableFiberNum}" data-fiber-out="${mf.fiber_number || ''}"
           data-fiber-color-in="${colIn}" data-fiber-color-out="${colOut}"
