@@ -6372,26 +6372,26 @@ var inputHasActivePower = splitterInputFibers[0] && (splitterInputFibers[0].acti
           }
         }
         
-        // ⭐ Direccion del data-flow: IGUAL que las fusiones (por _activePowerMap)
-        // Determinar que lado tiene potencia exactamente como en cable-to-cable
-        var cableConnId = cableInfo.connId;
-        var powerCable = typeof _activePowerMap !== 'undefined' && _activePowerMap[cableConnId] && _activePowerMap[cableConnId][cableFiberNum];
-        var powerSplitter = mf.active_power == 1 || mf.active_power === true;
+        // ⭐ Direccion del data-flow: basada en fiber_uid (potencia por UID)
+        // cd.fibers[].active_power viene de cable_fibers (UID-based)
+        // mf.active_power viene de manga_fibers (UID-based)
+        var cableFiberPower = false;
+        if (cd && cd.fibers) {
+          var fibMatch = cd.fibers.find(function(f) { return f.fiber_number == cableFiberNum; });
+          if (fibMatch) cableFiberPower = fibMatch.active_power == 1 || fibMatch.active_power === true;
+        }
+        var splitterHasPower = mf.active_power == 1 || mf.active_power === true;
         
-        console.log('[SPLICE-DIR] splice.id=' + splice.id + ' powerCable=' + powerCable + ' powerSplitter=' + powerSplitter + ' cableIsLeft=' + cableIsLeft + ' fromX=' + fromX.toFixed(0) + ' toX=' + toX.toFixed(0));
-        if (powerCable && !powerSplitter) {
-          // Solo cable tiene power → de cable a splitter
+        if (cableFiberPower && !splitterHasPower) {
+          // Solo cable tiene power (UID tiene power) → de cable a splitter
           fromX = cableIsLeft ? leftStartX + leftCableBlockW : rightStartX;
           toX = splitterOutIdx === 0 ? inputPortX : (outPortX - 8);
-          console.log('[SPLICE-DIR] DECISION: cable->splitter fromX=' + fromX + ' toX=' + toX);
-        } else if (powerSplitter && !powerCable) {
-          // Solo splitter tiene power → de splitter a cable
+        } else if (splitterHasPower && !cableFiberPower) {
+          // Solo splitter tiene power (UID tiene power) → de splitter a cable
           fromX = splitterOutIdx === 0 ? inputPortX : (outPortX - 8);
           toX = cableIsLeft ? leftStartX + leftCableBlockW : rightStartX;
-          console.log('[SPLICE-DIR] DECISION: splitter->cable fromX=' + fromX + ' toX=' + toX);
-        } else {
-          console.log('[SPLICE-DIR] DECISION: ambos/ninguno, mantener original');
         }
+        // Si ambos o ninguno: mantener direccion original (basada en posicion del bloque)
         
         const cpOff = Math.abs((toX - fromX)) * 0.3;
         // ⭐ Curva en direccion correcta: control points hacia el CENTRO
