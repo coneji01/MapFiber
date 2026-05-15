@@ -14,7 +14,7 @@ const webTutorialRoutes = require('./web-tutorials');
 const webPaymentRoutes = require('./web-payments');
 
 const oltCardsRouter = require('./olt-cards');
-const fiberTraceRouter = require('./fiber-trace');
+const { router: fiberTraceRouter, syncPowerState } = require('./fiber-trace');
 const apiV3MangasRouter = require('./api-v3-mangas');
 
 const APP_TS = Date.now();
