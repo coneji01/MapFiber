@@ -3237,17 +3237,19 @@ app.post('/api/fusions', (req, res) => {
     db.prepare("UPDATE cable_fibers SET status='used', notes=COALESCE(notes || ' | ','') || 'fusion' WHERE cable_id=? AND fiber_number=?")
       .run(pointIn.cable_id, fiber_in);
     
-    // ⭐ Fusionar fiber_uid: ambas fibras ahora son el MISMO hilo fisico
+    // ⭐ Fusionar fiber_uid: usar cable_point_fibers (per-point)
     if (cable_connection_id_out && fiber_out) {
       var pointOut = db.prepare('SELECT * FROM cable_points WHERE id=?').get(cable_connection_id_out);
       if (pointOut) {
-        var cfIn = db.prepare('SELECT * FROM cable_fibers WHERE cable_id=? AND fiber_number=?').get(pointIn.cable_id, fiber_in);
-        var cfOut = db.prepare('SELECT * FROM cable_fibers WHERE cable_id=? AND fiber_number=?').get(pointOut.cable_id, fiber_out);
-        if (cfIn && cfOut && cfIn.fiber_uid && cfOut.fiber_uid && cfIn.fiber_uid !== cfOut.fiber_uid) {
-          var mergedUid = cfIn.fiber_uid;
-          if (cfOut.active_power && !cfIn.active_power) mergedUid = cfOut.fiber_uid;
-          db.prepare('UPDATE cable_fibers SET fiber_uid=? WHERE fiber_uid=?').run(mergedUid, cfOut.fiber_uid);
-          db.prepare('UPDATE cable_fibers SET fiber_uid=? WHERE fiber_uid=?').run(mergedUid, cfIn.fiber_uid);
+        var cpfIn = db.prepare('SELECT * FROM cable_point_fibers WHERE cable_point_id=? AND fiber_number=?').get(cable_connection_id_in, fiber_in);
+        var cpfOut = db.prepare('SELECT * FROM cable_point_fibers WHERE cable_point_id=? AND fiber_number=?').get(cable_connection_id_out, fiber_out);
+        if (cpfIn && cpfOut && cpfIn.fiber_uid && cpfOut.fiber_uid && cpfIn.fiber_uid !== cpfOut.fiber_uid) {
+          var mergedUid = cpfIn.fiber_uid;
+          if (cpfOut.active_power && !cpfIn.active_power) mergedUid = cpfOut.fiber_uid;
+          db.prepare('UPDATE cable_point_fibers SET fiber_uid=? WHERE fiber_uid=?').run(mergedUid, cpfOut.fiber_uid);
+          db.prepare('UPDATE cable_point_fibers SET fiber_uid=? WHERE fiber_uid=?').run(mergedUid, cpfIn.fiber_uid);
+          // Sync cable_fibers from cable_point_fibers (take first matching UID)
+          db.prepare('UPDATE cable_fibers SET fiber_uid=(SELECT fiber_uid FROM cable_point_fibers WHERE cable_point_id=? AND fiber_number=? LIMIT 1) WHERE cable_id=? AND fiber_number=?').run(cable_connection_id_in, fiber_in, pointIn.cable_id, fiber_in);
         }
       }
     }
@@ -3408,21 +3410,29 @@ app.delete('/api/fusions/:id', (req, res) => {
     }
   }
 
-  // ⭐ Al romper la fusion: dividir fiber_uid (cada lado ahora es un hilo diferente)
-  if (fusion.cable_out_id && fusion.fiber_out) {
-    var cfOut = db.prepare('SELECT * FROM cable_fibers WHERE cable_id=? AND fiber_number=?').get(fusion.cable_out_id, fusion.fiber_out);
-    if (cfOut && cfOut.fiber_uid) {
-      var newUid = 'fiber-' + Date.now() + '-' + fusion.cable_out_id + '-' + fusion.fiber_out;
-      db.prepare('UPDATE cable_fibers SET fiber_uid=? WHERE id=?').run(newUid, cfOut.id);
+  // ⭐ Al romper la fusion: dividir fiber_uid a NIVEL de CABLE_POINT
+  var now = Date.now();
+  
+  // Lado OUT: nuevo UID para el cable_point de salida
+  var cpOut = db.prepare('SELECT * FROM cable_points WHERE id=?').get(fusion.cable_connection_id_out);
+  if (cpOut && fusion.fiber_out) {
+    var newUidOut = 'fiber-' + now + '-' + cpOut.cable_id + '-' + fusion.fiber_out + '-cp' + cpOut.id;
+    db.prepare('UPDATE cable_point_fibers SET fiber_uid=? WHERE cable_point_id=? AND fiber_number=?').run(newUidOut, cpOut.id, fusion.fiber_out);
+  }
+  
+  // Lado IN: mantener el UID original (no cambiar, o cambiarlo solo si cable_in !== cable_out)
+  // Para el mismo cable: el IN side conserva el UID original para que OLT siga teniendo power
+  // Para cables diferentes: ambos lados se separan
+  if (fusion.cable_in_id !== fusion.cable_out_id) {
+    var cpIn = db.prepare('SELECT * FROM cable_points WHERE id=?').get(fusion.cable_connection_id_in);
+    if (cpIn && fusion.fiber_in) {
+      var newUidIn = 'fiber-' + now + '-' + cpIn.cable_id + '-' + fusion.fiber_in + '-cp' + cpIn.id;
+      db.prepare('UPDATE cable_point_fibers SET fiber_uid=? WHERE cable_point_id=? AND fiber_number=?').run(newUidIn, cpIn.id, fusion.fiber_in);
     }
   }
-  if (fusion.cable_in_id && fusion.fiber_in) {
-    var cfIn = db.prepare('SELECT * FROM cable_fibers WHERE cable_id=? AND fiber_number=?').get(fusion.cable_in_id, fusion.fiber_in);
-    if (cfIn && cfIn.fiber_uid) {
-      var newUid = 'fiber-' + Date.now() + '-' + fusion.cable_in_id + '-' + fusion.fiber_in;
-      db.prepare('UPDATE cable_fibers SET fiber_uid=? WHERE id=?').run(newUid, cfIn.id);
-    }
-  }
+  
+  // Sincronizar desde cable_point_fibers a cable_fibers (elegir el cable_point mas cercano a OLT como representante)
+  // Esto es un workaround hasta que cable_fibers se refactorice
   
     syncPowerState();
   db.prepare('DELETE FROM fusions WHERE id=?').run(req.params.id);
@@ -3678,6 +3688,16 @@ app.get('/api/fibers/:id/route', (req, res) => {
 });
 
 // ========== CABLE POINTS (filtered by element_type/element_id) ==========
+// GET cable_point_fibers (per-point fiber UIDs)
+app.get('/api/cable-point-fibers', (req, res) => {
+  const { cable_point_id } = req.query;
+  if (cable_point_id) {
+    res.json(db.prepare('SELECT * FROM cable_point_fibers WHERE cable_point_id=? ORDER BY fiber_number').all(cable_point_id));
+  } else {
+    res.json(db.prepare('SELECT * FROM cable_point_fibers ORDER BY cable_point_id, fiber_number').all());
+  }
+});
+
 app.get('/api/cable-points', (req, res) => {
   const { element_type, element_id, cable_id } = req.query;
   if (cable_id) {

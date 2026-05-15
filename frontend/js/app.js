@@ -5143,6 +5143,22 @@ async function openMangaVisualizer(mangaId, entityType) {
     });
   }
   
+  // ====== FETCH CABLE_POINT_FIBERS (UID per point) ======
+  try {
+    var cpfRes = await fetch(API + '/cable-point-fibers');
+    var cpfData = await cpfRes.json();
+    window._cablePointFibers = {};
+    if (Array.isArray(cpfData)) {
+      cpfData.forEach(function(cpf) {
+        if (!window._cablePointFibers[cpf.cable_point_id]) window._cablePointFibers[cpf.cable_point_id] = [];
+        window._cablePointFibers[cpf.cable_point_id].push(cpf);
+      });
+    }
+  } catch(e) {
+    console.warn('[CPF] Error loading cable_point_fibers:', e.message);
+    window._cablePointFibers = null;
+  }
+  
   // ====== FETCH FIBER CONNECTIONS for active power ======
   var _activePowerMap = {};
   // Fetch fiber_connections for active power
@@ -6375,8 +6391,15 @@ var inputHasActivePower = splitterInputFibers[0] && (splitterInputFibers[0].acti
         // ⭐ Direccion del data-flow: basada en fiber_uid (potencia por UID)
         // cd.fibers[].active_power viene de cable_fibers (UID-based)
         // mf.active_power viene de manga_fibers (UID-based)
+        // ⭐ Potencia por cable_point_fibers (UID por punto, no por cable)
+        // Buscar en cache local o en fibers cargados
         var cableFiberPower = false;
-        if (cd && cd.fibers) {
+        if (window._cablePointFibers && window._cablePointFibers[cableInfo.connId]) {
+          var cpfMatch = window._cablePointFibers[cableInfo.connId].find(function(f) { return f.fiber_number == cableFiberNum; });
+          if (cpfMatch) cableFiberPower = cpfMatch.active_power == 1 || cpfMatch.active_power === true;
+        }
+        // Fallback: cd.fibers (cable-level, menos preciso)
+        if (!window._cablePointFibers && cd && cd.fibers) {
           var fibMatch = cd.fibers.find(function(f) { return f.fiber_number == cableFiberNum; });
           if (fibMatch) cableFiberPower = fibMatch.active_power == 1 || fibMatch.active_power === true;
         }

@@ -910,6 +910,16 @@ function syncPowerState() {
     }
   }
   
+  // 5.7 Sincronizar cable_point_fibers.active_power por fiber_uid
+  var poweredUIDs2 = {};
+  var poweredCFs2 = db.prepare('SELECT fiber_uid, power_level FROM cable_fibers WHERE active_power=1 AND fiber_uid IS NOT NULL').all();
+  for (var pcf2 of poweredCFs2) {
+    if (!poweredUIDs2[pcf2.fiber_uid]) {
+      poweredUIDs2[pcf2.fiber_uid] = true;
+      db.prepare('UPDATE cable_point_fibers SET active_power=1, power_level=? WHERE fiber_uid=?').run(pcf2.power_level, pcf2.fiber_uid);
+    }
+  }
+  
   // 6. Sincronizar cable_fibers.active_power por fiber_uid
   // Primero limpiar todo
   db.prepare('UPDATE cable_fibers SET active_power=0, power_level=NULL').run();
