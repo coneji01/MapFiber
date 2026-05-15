@@ -867,16 +867,15 @@ body {
   filter: drop-shadow(0 0 4px currentColor);
 }
 
-@keyframes powerPulse {
-  0%, 100% { stroke-opacity: 0.6; }
-  50% { stroke-opacity: 1; }
+@keyframes dataFlow {
+  0% { stroke-dashoffset: 0; }
+  100% { stroke-dashoffset: -40; }
 }
 
 .fl.data-flow {
-  stroke-dasharray: 12 6;
-  animation: powerPulse 0.8s ease-in-out infinite;
+  stroke-dasharray: 16 4;
+  animation: dataFlow 0.8s linear infinite;
   stroke-opacity: 0.85;
-  transition: none !important;
 }
 
 .fl.active-pulse {
