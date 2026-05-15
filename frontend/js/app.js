@@ -6372,8 +6372,28 @@ var inputHasActivePower = splitterInputFibers[0] && (splitterInputFibers[0].acti
           }
         }
         
-        const cpOff = (toX - fromX) * 0.3;
-        const hasPower = mf.active_power && mf.power_level !== null;
+        // ⭐ Direccion del data-flow: desde el hilo con POTENCIA hacia el que no tiene
+        // Splitter output tiene power? Cable fiber tiene power?
+        var cableFiberPower = false;
+        if (cd && cd.fibers) {
+          var fibMatch = cd.fibers.find(function(f) { return f.fiber_number == cableFiberNum; });
+          if (fibMatch) cableFiberPower = fibMatch.active_power == 1 || fibMatch.active_power === true;
+        }
+        var splitterHasPower = mf.active_power == 1 || mf.active_power === true;
+        // Ajustar fromX/toX: el hilo con potencia debe ser el ORIGEN (from)
+        if (splitterHasPower && !cableFiberPower) {
+          // Splitter tiene power → de splitter a cable
+          fromX = outPortX - 8;
+          toX = cableIsLeft ? leftStartX + leftCableBlockW : rightStartX;
+        } else if (cableFiberPower && !splitterHasPower) {
+          // Cable tiene power → de cable a splitter
+          fromX = cableIsLeft ? leftStartX + leftCableBlockW : rightStartX;
+          toX = outPortX - 8;
+        }
+        // Si ambos o ninguno tienen power, mantener direccion original
+        
+        const cpOff = Math.abs((toX - fromX)) * 0.3;
+        const hasPower = splitterHasPower || cableFiberPower;
         const activeClass = hasPower ? 'data-flow' : '';
         
         svgLines += `<path class="fl ${activeClass}" d="M ${fromX},${fromY} C ${fromX + cpOff},${fromY} ${toX - cpOff},${toY} ${toX},${toY}" 
