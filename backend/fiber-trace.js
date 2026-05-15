@@ -752,6 +752,8 @@ router.get('/hilos-con-potencia', (req, res) => {
     }
   }
 
+  syncPowerState();
+  
   res.json({
     // Solo hilos fuente (directamente desde OLT), NO heredados
     fuentes: hilosFuente,
@@ -829,41 +831,58 @@ function syncPowerState() {
   }
   
   // 4. Propagar por splices (cable ↔ splitter)
-  var splices = db.prepare(`
-    SELECT s.*, cp.cable_id as cable_id, mf.splitter_id, mf.splitter_output
+  // Primero: INPUT splices (cable → splitter input)
+  var spliceInputs = db.prepare(`
+    SELECT s.*, cp.cable_id as cable_id, mf.id as mf_id
     FROM splices s
-    LEFT JOIN cable_points cp ON cp.id = CASE 
+    JOIN cable_points cp ON cp.id = CASE 
       WHEN s.fiber_a_type='cable_fiber' THEN s.fiber_a_id 
       ELSE s.fiber_b_id 
     END
-    LEFT JOIN manga_fibers mf ON mf.id = CASE 
+    JOIN manga_fibers mf ON mf.id = CASE 
       WHEN s.fiber_a_type='manga_fiber' THEN s.fiber_a_id 
       ELSE s.fiber_b_id 
     END
+    WHERE mf.splitter_output = 0 OR mf.splitter_output IS NULL
   `).all();
   
-  for (var s of splices) {
-    if (!s.cable_id || !s.splitter_id) continue;
-    
-    var cablePort = s.fiber_a_type === 'cable_fiber' ? s.fiber_a_port : s.fiber_b_port;
-    var fc = db.prepare('SELECT * FROM fiber_connections WHERE cable_id=? AND fiber_number=?').get(s.cable_id, cablePort);
-    
-    if (s.splitter_output === 0) {
-      // INPUT: cable → splitter. Si cable tiene power, prender splitter
-      if (fc && fc.active_power) {
-        db.prepare('UPDATE manga_fibers SET active_power=1, power_level=? WHERE id=?').run(fc.power_level, 
-          s.fiber_a_type === 'manga_fiber' ? s.fiber_a_id : s.fiber_b_id);
-      }
-    } else {
-      // OUTPUT: splitter → cable. Si splitter input tiene power, prender cable
-      var inputMf = db.prepare('SELECT * FROM manga_fibers WHERE splitter_id=? AND (splitter_output=0 OR splitter_output IS NULL)').get(s.splitter_id);
-      if (inputMf && inputMf.active_power) {
-        var loss = db.prepare('SELECT loss_db FROM splitters WHERE id=?').get(s.splitter_id);
-        var outPower = (inputMf.power_level || 2.5) - (loss ? loss.loss_db : 0);
-        if (fc && !fc.active_power) {
-          db.prepare('UPDATE fiber_connections SET active_power=1, power_level=? WHERE id=?').run(outPower, fc.id);
-        }
-      }
+  for (var si of spliceInputs) {
+    var cablePort = si.fiber_a_type === 'cable_fiber' ? si.fiber_a_port : si.fiber_b_port;
+    var fc = db.prepare('SELECT * FROM fiber_connections WHERE cable_id=? AND fiber_number=?').get(si.cable_id, cablePort);
+    if (fc && fc.active_power) {
+      db.prepare('UPDATE manga_fibers SET active_power=1, power_level=? WHERE id=?').run(fc.power_level, si.mf_id);
+    }
+  }
+  
+  // Luego: Splitter INPUT → OUTPUTS (si input tiene power, todas las salidas prenden)
+  var inputMFs = db.prepare('SELECT * FROM manga_fibers WHERE splitter_id IS NOT NULL AND (splitter_output=0 OR splitter_output IS NULL) AND active_power=1').all();
+  for (var imf of inputMFs) {
+    var loss = db.prepare('SELECT st.loss_db FROM splitters s JOIN splitter_types st ON st.id=s.splitter_type_id WHERE s.id=?').get(imf.splitter_id);
+    var outPower = (imf.power_level || 2.5) - (loss ? loss.loss_db : 0);
+    db.prepare('UPDATE manga_fibers SET active_power=1, power_level=? WHERE splitter_id=? AND splitter_output>0').run(outPower, imf.splitter_id);
+  }
+  
+  // Finalmente: OUTPUT splices (splitter output → cable)
+  var spliceOutputs = db.prepare(`
+    SELECT s.*, cp.cable_id as cable_id, mf.id as mf_id, mf.power_level as mf_power
+    FROM splices s
+    JOIN cable_points cp ON cp.id = CASE 
+      WHEN s.fiber_a_type='cable_fiber' THEN s.fiber_a_id 
+      ELSE s.fiber_b_id 
+    END
+    JOIN manga_fibers mf ON mf.id = CASE 
+      WHEN s.fiber_a_type='manga_fiber' THEN s.fiber_a_id 
+      ELSE s.fiber_b_id 
+    END
+    WHERE mf.splitter_output > 0
+  `).all();
+  
+  for (var so of spliceOutputs) {
+    if (!so.mf_power) continue;
+    var cablePort2 = so.fiber_a_type === 'cable_fiber' ? so.fiber_a_port : so.fiber_b_port;
+    var fc2 = db.prepare('SELECT * FROM fiber_connections WHERE cable_id=? AND fiber_number=?').get(so.cable_id, cablePort2);
+    if (fc2 && !fc2.active_power) {
+      db.prepare('UPDATE fiber_connections SET active_power=1, power_level=? WHERE id=?').run(so.mf_power, fc2.id);
     }
   }
   
