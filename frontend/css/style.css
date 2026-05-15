@@ -867,14 +867,25 @@ body {
   filter: drop-shadow(0 0 4px currentColor);
 }
 
-@keyframes dataFlow {
+@keyframes flowFwd {
   0% { stroke-dashoffset: 40; }
   100% { stroke-dashoffset: 0; }
 }
 
-.fl.data-flow {
+@keyframes flowRev {
+  0% { stroke-dashoffset: 0; }
+  100% { stroke-dashoffset: 40; }
+}
+
+.fl.flow-fwd {
   stroke-dasharray: 16 5;
-  animation: dataFlow 0.8s linear infinite;
+  animation: flowFwd 0.8s linear infinite;
+  stroke-opacity: 0.85;
+}
+
+.fl.flow-rev {
+  stroke-dasharray: 16 5;
+  animation: flowRev 0.8s linear infinite;
   stroke-opacity: 0.85;
 }
 

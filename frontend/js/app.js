@@ -174,7 +174,7 @@ async function injectFusion(connIn, fiberIn, connOut, fiberOut, fusionId, lossDb
     strokeVal = 'url(#' + gid + ')';
   }
 
-  const pathClass = 'fl' + (hasPower ? ' data-flow' : '');
+  const pathClass = 'fl' + (hasPower ? ' flow-fwd' : '');
   const pathOpacity = hasPower ? '0.85' : '0.5';
 
   // Fusion path
@@ -371,7 +371,7 @@ function injectSplice(cableConnId, cableFiber, splitterMfId, splitterPort, splic
           if (omfId) {
             var outSplice = svgEl.querySelector('.fl[data-splice][data-conn-out="' + omfId + '"]');
             if (outSplice) {
-              outSplice.classList.add('data-flow');
+              outSplice.classList.add('flow-fwd');
               outSplice.setAttribute('data-active', 'true');
               outSplice.setAttribute('data-fusion-power', '9.4');
               outSplice.setAttribute('opacity', '0.85');
@@ -381,7 +381,7 @@ function injectSplice(cableConnId, cableFiber, splitterMfId, splitterPort, splic
       }
     }
   }
-  const pathClass = 'fl' + (hasPower ? ' data-flow' : '');
+  const pathClass = 'fl' + (hasPower ? ' flow-fwd' : '');
   const pathOpacity = hasPower ? '0.85' : '0.8';
 
   // Splice path
@@ -5917,93 +5917,42 @@ async function openMangaVisualizer(mangaId, entityType) {
   // ====== DRAW FUSION LINES with color gradient + conditional animation ======
   if (Array.isArray(renderFusions)) {
     renderFusions.forEach((fusion, fi) => {
-      // Determine LEFT (OLT-source) and RIGHT (destination) for the fusion
-      // El flujo siempre va desde el hilo del lado de la OLT hacia el otro lado
-      // No importa el orden en que el usuario hizo clic para crear la fusion
-      var leftCableId = null, rightCableId = null;
-      var leftFiberNum = null, rightFiberNum = null;
-      
       var connIn = fusion.cable_connection_id_in;
       var connOut = fusion.cable_connection_id_out;
       var fIn = parseInt(fusion.fiber_in);
       var fOut = parseInt(fusion.fiber_out);
       
-      // Determinar lado izquierdo usando source_conn_id guardado en DB
-      // El backend guarda qué lado tiene la fuente OLT al crear la fusion
+      // ⭐ DATA-DRIVEN: path geometria = connIn→connOut (siempre, sin swap)
+      // Direccion de animacion determinada por _activePowerMap (clase flow-fwd/flow-rev)
       var pointIn = null, pointOut = null;
       if (state._cablePoints) {
         pointIn = state._cablePoints.find(function(p) { return p.id == connIn; });
         pointOut = state._cablePoints.find(function(p) { return p.id == connOut; });
       }
-      var cableIdIn = pointIn ? pointIn.cable_id : null;
-      var cableIdOut = pointOut ? pointOut.cable_id : null;
-      var mismoCable = cableIdIn && cableIdOut && cableIdIn === cableIdOut;
       
-      // Dirección del data-flow: la animación va SIEMPRE desde
-      // el hilo con POTENCIA hacia el hilo SIN potencia.
-      // Si ambos tienen potencia, se usa _cablePairLeft/Right.
-      // Si ninguno tiene potencia, se usa connIn→connOut.
+      // Potencia: consultar _activePowerMap por cable_point_id
       var powerIn = typeof _activePowerMap !== 'undefined' && _activePowerMap[connIn] && _activePowerMap[connIn][fIn];
       var powerOut = typeof _activePowerMap !== 'undefined' && _activePowerMap[connOut] && _activePowerMap[connOut][fOut];
+      const hasActivePower = powerIn || powerOut;
       
-      if (powerIn && !powerOut) {
-        // ⭐ Solo connIn tiene potencia → fluye de connIn a connOut
-        leftCableId = connIn; leftFiberNum = fIn;
-        rightCableId = connOut; rightFiberNum = fOut;
-      } else if (powerOut && !powerIn) {
-        // ⭐ Solo connOut tiene potencia → fluye de connOut a connIn
-        leftCableId = connOut; leftFiberNum = fOut;
-        rightCableId = connIn; rightFiberNum = fIn;
-      } else if (powerIn && powerOut) {
-        // ⭐ Ambos tienen potencia: usar source_conn_id de la fusion
-        if (fusion.source_conn_id && parseInt(fusion.source_conn_id) === connIn) {
-          leftCableId = connIn; leftFiberNum = fIn;
-          rightCableId = connOut; rightFiberNum = fOut;
-        } else if (fusion.source_conn_id && parseInt(fusion.source_conn_id) === connOut) {
-          leftCableId = connOut; leftFiberNum = fOut;
-          rightCableId = connIn; rightFiberNum = fIn;
-        } else if (pointIn && pointOut) {
-          // Fallback: secuencia
-          if (parseInt(pointIn.sequence) <= parseInt(pointOut.sequence)) {
-            leftCableId = connIn; leftFiberNum = fIn;
-            rightCableId = connOut; rightFiberNum = fOut;
-          } else {
-            leftCableId = connOut; leftFiberNum = fOut;
-            rightCableId = connIn; rightFiberNum = fIn;
-          }
-        } else {
-          leftCableId = connIn; leftFiberNum = fIn;
-          rightCableId = connOut; rightFiberNum = fOut;
-        }
-      } else {
-        // ⭐ Ninguno tiene potencia: usar _cablePairLeft/Right o fallback
-        if (_cablePairLeft && _cablePairLeft[connIn]) {
-          leftCableId = connIn; leftFiberNum = fIn;
-          rightCableId = connOut; rightFiberNum = fOut;
-        } else if (_cablePairLeft && _cablePairLeft[connOut]) {
-          leftCableId = connOut; leftFiberNum = fOut;
-          rightCableId = connIn; rightFiberNum = fIn;
-        } else if (_cablePairRight && _cablePairRight[connIn]) {
-          leftCableId = connOut; leftFiberNum = fOut;
-          rightCableId = connIn; rightFiberNum = fIn;
-        } else if (_cablePairRight && _cablePairRight[connOut]) {
-          leftCableId = connIn; leftFiberNum = fIn;
-          rightCableId = connOut; rightFiberNum = fOut;
-        } else {
-          leftCableId = connIn; leftFiberNum = fIn;
-          rightCableId = connOut; rightFiberNum = fOut;
-        }
+      // ⭐ Direccion de animacion: flow-fwd (M→C) o flow-rev (C→M)
+      // Si powerIn: fuente en connIn (M) → flow-fwd
+      // Si powerOut sin powerIn: fuente en connOut (C) → flow-rev
+      // Ambos/ninguno: flow-fwd por defecto
+      let flowClass = '';
+      if (hasActivePower) {
+        flowClass = (powerOut && !powerIn) ? 'flow-rev' : 'flow-fwd';
       }
       
-      console.log('[FUSION-DIR] fusion #' + fusion.id + ' IN=' + connIn + '#' + fIn + ' OUT=' + connOut + '#' + fOut + ' left=' + leftCableId + '#' + leftFiberNum + ' right=' + rightCableId + '#' + rightFiberNum + ' pairRight[in]=' + (_cablePairRight ? _cablePairRight[connIn] : 'N/A') + ' pairRight[out]=' + (_cablePairRight ? _cablePairRight[connOut] : 'N/A') + ' pairLeft[in]=' + (_cablePairLeft ? _cablePairLeft[connIn] : 'N/A') + ' pairLeft[out]=' + (_cablePairLeft ? _cablePairLeft[connOut] : 'N/A') + ' activeIn=' + (typeof _activePowerMap !== 'undefined' && !!_activePowerMap[connIn]) + ' activeOut=' + (typeof _activePowerMap !== 'undefined' && !!_activePowerMap[connOut]));
-      const srcCD = cableFiberData.find(cd => cd.cableConnectionId == leftCableId);
-      const tgtCD = cableFiberData.find(cd => cd.cableConnectionId == rightCableId);
+      console.log('[FUSION-DIR] fusion #' + fusion.id + ' IN=' + connIn + '#' + fIn + ' OUT=' + connOut + '#' + fOut + ' powerIn=' + powerIn + ' powerOut=' + powerOut + ' flow=' + flowClass + ' pairRight[in]=' + (_cablePairRight ? _cablePairRight[connIn] : 'N/A') + ' pairRight[out]=' + (_cablePairRight ? _cablePairRight[connOut] : 'N/A'));
       
-      if (!srcCD || !tgtCD) return;
+      // ⭐ Path geometrico: siempre connIn→connOut (sin swap de coordenadas)
+      const srcCD = cableFiberData.find(cd => cd.cableConnectionId == connIn);
+      const tgtCD = cableFiberData.find(cd => cd.cableConnectionId == connOut);
+      if (!srcCD || !tgtCD) { console.log('[FUSION-DIR] srcCD/tgtCD not found'); return; }
       
       const srcBlockIdx = cableFiberData.indexOf(srcCD);
       const tgtBlockIdx = cableFiberData.indexOf(tgtCD);
-      
       const srcBlockTop = 60 + srcBlockIdx * (blockH + 20);
       const tgtBlockTop = 60 + tgtBlockIdx * (blockH + 20);
       
@@ -6012,52 +5961,36 @@ async function openMangaVisualizer(mangaId, entityType) {
       const fSpacingSrc = (blockH - 36) / maxFibersSrc;
       const fSpacingTgt = (blockH - 36) / maxFibersTgt;
       
-      const srcFiberNum = leftFiberNum;
-      const tgtFiberNum = rightFiberNum;
+      const srcY = srcBlockTop + 34 + (Math.min(fIn, maxFibersSrc) - 1) * fSpacingSrc + 4;
+      const tgtY = tgtBlockTop + 34 + (Math.min(fOut, maxFibersTgt) - 1) * fSpacingTgt + 4;
       
-      const srcY = srcBlockTop + 34 + (Math.min(srcFiberNum, maxFibersSrc) - 1) * fSpacingSrc + 4;
-      const tgtY = tgtBlockTop + 34 + (Math.min(tgtFiberNum, maxFibersTgt) - 1) * fSpacingTgt + 4;
-      
-      // Animación: x1 es el bloque ORIGEN (fuente de potencia), x4 el DESTINO
-      // leftCableId puede estar en LEFT o RIGHT segun la potencia
+      // ⭐ Coordenadas geometricas: connIn→connOut, jamas se swapean
       function getBlockX(connId) {
         if (_cablePairRight && _cablePairRight[connId]) return rightStartX;
-        return leftStartX + leftCableBlockW; // LEFT block (o terminacion)
+        return leftStartX + leftCableBlockW;
       }
-      const x1 = getBlockX(leftCableId);
-      const x4 = getBlockX(rightCableId);
+      const x1 = getBlockX(connIn);
+      const x4 = getBlockX(connOut);
       
-      // Calculate bezier control points (gentle curves)
       const midX = (x1 + x4) / 2;
       const cpOffsetX = (x4 - x1) * 0.3;
       
-      const colorIn = tiaColor(srcFiberNum);
-      const colorOut = tiaColor(tgtFiberNum);
-      console.log('[FUSION-DIR] COLOR: fusion=' + fusion.id + ' srcFib=' + srcFiberNum + '(' + colorIn + ') -> tgtFib=' + tgtFiberNum + '(' + colorOut + ') x1=' + x1 + ' x4=' + x4 + ' midX=' + midX);
+      const colorIn = tiaColor(fIn);
+      const colorOut = tiaColor(fOut);
+      console.log('[FUSION-DIR] COLOR: fusion=' + fusion.id + ' fIn=' + fIn + '(' + colorIn + ') fOut=' + fOut + '(' + colorOut + ') x1=' + x1 + ' x4=' + x4 + ' midX=' + midX);
       const loss = parseFloat(fusion.loss_db) || 0.01;
       
-      // Check if fiber has active power: via _activePowerMap (propagated from OLT through fusions)
-      // or fallback to fusion.active_power field
-      const srcHasPower = typeof _activePowerMap !== 'undefined' && _activePowerMap[leftCableId] && _activePowerMap[leftCableId][srcFiberNum];
-      const tgtHasPower = typeof _activePowerMap !== 'undefined' && _activePowerMap[rightCableId] && _activePowerMap[rightCableId][tgtFiberNum];
-      // ⭐ data-flow solo cuando _activePowerMap dice que hay potencia (como el ⚡)
-      // fusion.active_power de la API puede estar desactualizado
-      const hasActivePower = srcHasPower || tgtHasPower;
       let powerLevel = fusion.power_level;
-      // If no power_level on fusion but we know it has power, use a default OLT power level
       if (hasActivePower && (powerLevel === null || powerLevel === undefined)) {
-        powerLevel = 9.4; // Default OLT power level for animation display
+        powerLevel = 9.4;
       }
       
-      // Determine power badge class
       let powerTextClass = '';
       if (hasActivePower && powerLevel !== null) {
         if (powerLevel >= -20) { powerTextClass = 'power-text-good'; }
         else if (powerLevel >= -25) { powerTextClass = 'power-text-warn'; }
         else { powerTextClass = 'power-text-bad'; }
       }
-      
-      const activeClass = hasActivePower ? 'data-flow' : '';
       const lineOpacity = '1';
       const fusionIdAttr = `data-fusion="${fusion.id}"`;
       const fiberInAttr = `data-fiber-in="${srcFiberNum}"`;
@@ -6088,7 +6021,7 @@ async function openMangaVisualizer(mangaId, entityType) {
       }
       
       // Draw bezier curve for the fusion
-      svgLines += `<path class="fl ${activeClass}" d="M ${x1},${srcY} C ${x1 + cpOffsetX},${srcY} ${x4 - cpOffsetX},${tgtY} ${x4},${tgtY}" stroke="${strokeValue}" stroke-width="2.5" opacity="${lineOpacity}" fill="none" ${fusionIdAttr} ${fiberInAttr} ${fiberOutAttr} ${connInAttr} ${connOutAttr} data-fiber-color-in="${colorIn}" data-fiber-color-out="${colorOut}" data-fiber-color="${colorIn}" data-active="${hasActivePower ? 'true' : 'false'}" data-fusion-power="${hasActivePower && powerLevel !== null ? powerLevel.toFixed(1) : ''}" data-fiber-name="${tiaColorName(srcFiberNum) || '—'}" />`;
+      svgLines += `<path class="fl ${flowClass}" d="M ${x1},${srcY} C ${x1 + cpOffsetX},${srcY} ${x4 - cpOffsetX},${tgtY} ${x4},${tgtY}" stroke="${strokeValue}" stroke-width="2.5" opacity="${lineOpacity}" fill="none" ${fusionIdAttr} ${fiberInAttr} ${fiberOutAttr} ${connInAttr} ${connOutAttr} data-fiber-color-in="${colorIn}" data-fiber-color-out="${colorOut}" data-fiber-color="${colorIn}" data-active="${hasActivePower ? 'true' : 'false'}" data-fusion-power="${hasActivePower && powerLevel !== null ? powerLevel.toFixed(1) : ''}" data-fiber-name="${tiaColorName(fIn) || '—'}" />`;
       // Fusion dot at midpoint (bicolor if colors differ)
       const dotR = hasActivePower ? 6 : 4;
       const dotClass = hasActivePower ? 'fl-dot active-dot' : 'fl-dot';
@@ -6409,30 +6342,30 @@ var inputHasActivePower = splitterInputFibers[0] && (splitterInputFibers[0].acti
         }
         var splitterHasPower = mf.active_power == 1 || mf.active_power === true;
         
-        console.log('[SPLICE-DIR] id=' + splice.id + ' cablePower=' + cableFiberPower + ' splitterPower=' + splitterHasPower + ' fromX=' + (fromX||0).toFixed(0) + ' toX=' + (toX||0).toFixed(0));
-        if (cableFiberPower && !splitterHasPower) {
-          // Solo cable tiene power (UID tiene power) → de cable a splitter
-          console.log('[SPLICE-DIR] DECISION: cable->splitter');
-          fromX = cableIsLeft ? leftStartX + leftCableBlockW : rightStartX;
-          toX = splitterOutIdx === 0 ? inputPortX : (outPortX - 8);
-        } else if (splitterHasPower && !cableFiberPower) {
-          // Solo splitter tiene power (UID tiene power) → de splitter a cable
-          console.log('[SPLICE-DIR] DECISION: splitter->cable');
-          fromX = splitterOutIdx === 0 ? inputPortX : (outPortX - 8);
-          toX = cableIsLeft ? leftStartX + leftCableBlockW : rightStartX;
-        } else {
-          console.log('[SPLICE-DIR] DECISION: ambos/ninguno, mantener original fromX=' + (fromX||0).toFixed(0) + ' toX=' + (toX||0).toFixed(0));
+        const hasPower = splitterHasPower || cableFiberPower;
+        
+        // ⭐ DATA-DRIVEN: path geometrico fijo (sin swap), flow class segun potencia
+        // INPUT: fromX=cable_block→toX=splitter (geometrico)
+        //   flow-fwd si cable tiene power (fuente en M), flow-rev si splitter (fuente en C)
+        // OUTPUT: fromX=splitter→toX=cable_block (geometrico)
+        //   flow-fwd si splitter tiene power (fuente en M), flow-rev si cable (fuente en C)
+        let flowDir = '';
+        if (hasPower) {
+          if (splitterOutIdx === 0) {
+            // INPUT: M=cable (geometrico), source=cable → fwd, source=splitter → rev
+            flowDir = (splitterHasPower && !cableFiberPower) ? 'flow-rev' : 'flow-fwd';
+          } else {
+            // OUTPUT: M=splitter (geometrico), source=splitter → fwd, source=cable → rev
+            flowDir = (cableFiberPower && !splitterHasPower) ? 'flow-rev' : 'flow-fwd';
+          }
         }
-        // Si ambos o ninguno: mantener direccion original (basada en posicion del bloque)
+        console.log('[SPLICE-DIR] id=' + splice.id + ' cablePower=' + cableFiberPower + ' splitterPower=' + splitterHasPower + ' fromX=' + (fromX||0).toFixed(0) + ' toX=' + (toX||0).toFixed(0) + ' flow=' + flowDir);
         
         const cpOff = Math.abs((toX - fromX)) * 0.3;
-        // ⭐ Curva en direccion correcta: control points hacia el CENTRO
         const scpx1 = fromX < toX ? fromX + cpOff : fromX - cpOff;
         const scpx2 = fromX < toX ? toX - cpOff : toX + cpOff;
-        const hasPower = splitterHasPower || cableFiberPower;
-        const activeClass = hasPower ? 'data-flow' : '';
         
-        svgLines += `<path class="fl ${activeClass}" d="M ${fromX},${fromY} C ${scpx1},${fromY} ${scpx2},${toY} ${toX},${toY}" 
+        svgLines += `<path class="fl ${flowDir}" d="M ${fromX},${fromY} C ${scpx1},${fromY} ${scpx2},${toY} ${toX},${toY}" 
           stroke="${strokeVal}" stroke-width="3.5" opacity="1" fill="none" 
           data-splice="${splice.id}" data-fiber-in="${cableFiberNum}" data-fiber-out="${mf.fiber_number || ''}"
           data-fiber-color-in="${colIn}" data-fiber-color-out="${colOut}"
@@ -6533,11 +6466,11 @@ var inputHasActivePower = splitterInputFibers[0] && (splitterInputFibers[0].acti
           // (data-active se setea en el render segun _activePowerMap, respeta cortes)
           var fusionPathsIn = svgEl.querySelectorAll('.fl[data-fiber-in="' + hiloNum + '"][data-conn-in="' + connId + '"]:not([data-splice])');
           fusionPathsIn.forEach(function(p) {
-            if (p.getAttribute('data-active') === 'true') p.classList.add('data-flow');
+            if (p.getAttribute('data-active') === 'true') p.classList.add('flow-fwd');
           });
           var fusionPathsOut = svgEl.querySelectorAll('.fl[data-fiber-out="' + hiloNum + '"][data-conn-out="' + connId + '"]:not([data-splice])');
           fusionPathsOut.forEach(function(p) {
-            if (p.getAttribute('data-active') === 'true') p.classList.add('data-flow');
+            if (p.getAttribute('data-active') === 'true') p.classList.add('flow-fwd');
           });
         });
         
@@ -8218,7 +8151,7 @@ function doBreakSplice(spliceId) {
           if (!sId || sId === String(spliceId)) g.remove();
         });
         // Remove pulse class solo del splice eliminado
-        svgEl.querySelectorAll('.fl[data-splice="' + spliceId + '"]').forEach(p => p.classList.remove('active-pulse', 'data-flow'));
+        svgEl.querySelectorAll('.fl[data-splice="' + spliceId + '"]').forEach(p => p.classList.remove('active-pulse', 'flow-fwd'));
       }
       showToast('\u2714 Splice #' + spliceId + ' roto');
     })
@@ -8283,7 +8216,7 @@ async function doDeleteSpliceThenRefresh(spliceId) {
         var sId = g.getAttribute('data-splice');
         if (!sId || sId === String(spliceId)) g.remove();
       });
-      svgEl.querySelectorAll('.fl[data-splice="' + spliceId + '"]').forEach(p => p.classList.remove('active-pulse', 'data-flow'));
+      svgEl.querySelectorAll('.fl[data-splice="' + spliceId + '"]').forEach(p => p.classList.remove('active-pulse', 'flow-fwd'));
     }
     // Refresh completo del visualizador
     if (typeof state !== 'undefined' && state.currentVisualizerId) {
@@ -9122,7 +9055,7 @@ async function openOLTVisualizer(oltId) {
       }
       
       var hasPower = port.operational_status === 'Online' || (port.power && port.power > 0);
-      var animClass = hasPower ? 'active-pulse data-flow' : '';
+      var animClass = hasPower ? 'active-pulse flow-fwd' : '';
       var powerVal = port.power && port.power > 0 ? '+' + port.power.toFixed(1) + ' dBm' : (port.operational_status === 'Online' ? 'Online' : 'Offline');
       var tooltipText = powerVal + ' | P' + port.port_number + ' → #' + conn.fiber_number;
       svgLines += '<path class="fl ' + animClass + '" d="M ' + fromX + ',' + fromY + ' C ' + (fromX + cpOff) + ',' + fromY + ' ' + (toX - cpOff) + ',' + toY2 + ' ' + toX + ',' + toY2 + '" stroke="' + strokeColor + '" stroke-width="4" opacity="0.8" fill="none" data-fiber-conn="' + conn.id + '" data-conn-in="' + cd2.cableConnectionId + '" data-fiber-in="' + conn.fiber_number + '" data-olt-port-id="' + port.id + '" title="' + escHtml(tooltipText) + '" />';
@@ -9352,7 +9285,7 @@ async function openOLTVisualizer(oltId) {
           
           // Animar TODAS las líneas Bézier de este hilo en el SVG
           svgEl.querySelectorAll('.fl[data-fiber-in="' + segInicial.hilo_numero + '"]').forEach(function(p) {
-            p.classList.add('active-pulse', 'data-flow');
+            p.classList.add('active-pulse', 'flow-fwd');
           });
           
           var hiloNum = segInicial.hilo_numero;
