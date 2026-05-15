@@ -5955,10 +5955,14 @@ async function openMangaVisualizer(mangaId, entityType) {
       const srcY = srcBlockTop + 34 + (Math.min(srcFiberNum, maxFibersSrc) - 1) * fSpacingSrc + 4;
       const tgtY = tgtBlockTop + 34 + (Math.min(tgtFiberNum, maxFibersTgt) - 1) * fSpacingTgt + 4;
       
-      // Animación SIEMPRE hacia la DERECHA (como la OLT)
-      // x1 = borde derecho del bloque izquierdo, x4 = borde izquierdo del bloque derecho
-      const x1 = leftStartX + leftCableBlockW;
-      const x4 = rightStartX;
+      // Animación: x1 es el bloque ORIGEN (fuente de potencia), x4 el DESTINO
+      // leftCableId puede estar en LEFT o RIGHT segun la potencia
+      function getBlockX(connId) {
+        if (_cablePairRight && _cablePairRight[connId]) return rightStartX;
+        return leftStartX + leftCableBlockW; // LEFT block (o terminacion)
+      }
+      const x1 = getBlockX(leftCableId);
+      const x4 = getBlockX(rightCableId);
       
       // Calculate bezier control points (gentle curves)
       const midX = (x1 + x4) / 2;
