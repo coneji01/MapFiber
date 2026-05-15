@@ -5992,9 +5992,8 @@ async function openMangaVisualizer(mangaId, entityType) {
         else { powerTextClass = 'power-text-bad'; }
       }
       
-      // Only add glow if fiber has active power (no dash animation - dots pulse instead)
       const activeClass = hasActivePower ? 'data-flow' : '';
-      const lineOpacity = hasActivePower ? '0.85' : '0.5';
+      const lineOpacity = '1';
       const fusionIdAttr = `data-fusion="${fusion.id}"`;
       const fiberInAttr = `data-fiber-in="${srcFiberNum}"`;
       const fiberOutAttr = `data-fiber-out="${tgtFiberNum}"`;
@@ -6334,7 +6333,7 @@ async function openMangaVisualizer(mangaId, entityType) {
         const activeClass = hasPower ? 'data-flow' : '';
         
         svgLines += `<path class="fl ${activeClass}" d="M ${fromX},${fromY} C ${fromX + cpOff},${fromY} ${toX - cpOff},${toY} ${toX},${toY}" 
-          stroke="${strokeVal}" stroke-width="3.5" opacity="${hasPower ? '1' : '0.8'}" fill="none" 
+          stroke="${strokeVal}" stroke-width="3.5" opacity="1" fill="none" 
           data-splice="${splice.id}" data-fiber-in="${cableFiberNum}" data-fiber-out="${mf.fiber_number || ''}"
           data-fiber-color-in="${colIn}" data-fiber-color-out="${colOut}"
           data-conn-in="${cableInfo.connId}" data-conn-out="${splice.fiber_a_type === 'manga_fiber' ? splice.fiber_a_id : splice.fiber_b_id || ''}"
