@@ -886,6 +886,27 @@ function syncPowerState() {
     }
   }
   
+  // 4.5 Sincronizar fiber_uid entre cable_fibers y manga_fibers via splices
+  var allSplices = db.prepare('SELECT * FROM splices').all();
+  for (var sp of allSplices) {
+    var cableId = null, cableFiberNum = null, mfId = null;
+    if (sp.fiber_a_type === 'cable_fiber' && sp.fiber_b_type === 'manga_fiber') {
+      cableId = sp.fiber_a_id; cableFiberNum = sp.fiber_a_port; mfId = sp.fiber_b_id;
+    } else if (sp.fiber_a_type === 'manga_fiber' && sp.fiber_b_type === 'cable_fiber') {
+      cableId = sp.fiber_b_id; cableFiberNum = sp.fiber_b_port; mfId = sp.fiber_a_id;
+    }
+    if (cableId && mfId) {
+      var cablePt = db.prepare('SELECT cable_id FROM cable_points WHERE id=?').get(cableId);
+      if (cablePt) {
+        var cf = db.prepare('SELECT fiber_uid FROM cable_fibers WHERE cable_id=? AND fiber_number=?').get(cablePt.cable_id, cableFiberNum);
+        var mf = db.prepare('SELECT id, fiber_uid FROM manga_fibers WHERE id=?').get(mfId);
+        if (cf && cf.fiber_uid && mf && (!mf.fiber_uid || mf.fiber_uid !== cf.fiber_uid)) {
+          db.prepare('UPDATE manga_fibers SET fiber_uid=? WHERE id=?').run(cf.fiber_uid, mfId);
+        }
+      }
+    }
+  }
+  
   // 5. Sincronizar cable_fibers.active_power por fiber_uid
   // Primero limpiar todo
   db.prepare('UPDATE cable_fibers SET active_power=0, power_level=NULL').run();
