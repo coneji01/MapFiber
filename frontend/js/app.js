@@ -6374,7 +6374,7 @@ var inputHasActivePower = splitterInputFibers[0] && (splitterInputFibers[0].acti
         
         const cpOff = (toX - fromX) * 0.3;
         const hasPower = mf.active_power && mf.power_level !== null;
-        const activeClass = hasPower ? 'active-pulse' : '';
+        const activeClass = hasPower ? 'data-flow' : '';
         
         svgLines += `<path class="fl ${activeClass}" d="M ${fromX},${fromY} C ${fromX + cpOff},${fromY} ${toX - cpOff},${toY} ${toX},${toY}" 
           stroke="${strokeVal}" stroke-width="3.5" opacity="1" fill="none" 
