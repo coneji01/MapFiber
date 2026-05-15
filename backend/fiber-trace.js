@@ -223,4 +223,4 @@ router.get('/hilos-con-potencia/:cableId', (req, res) => {
   res.json(result);
 });
 
-module.exports = { router, syncPowerState: () => {} };
+module.exports = { router, propagarPotencia, syncPowerState: () => { try { propagarPotencia(); } catch(e) {} } };

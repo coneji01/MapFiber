@@ -1428,6 +1428,11 @@ app.post('/api/naps/:id/splitters', (req, res) => {
 
 // Manga fibers
 app.get('/api/mangas/:id/fibers', (req, res) => {
+  // ⭐ Actualizar power desde cable_points (nuevo modelo unificado)
+  try {
+    const { propagarPotencia } = require('./fiber-trace');
+    if (typeof propagarPotencia === 'function') propagarPotencia();
+  } catch(e) {}
   // Limpiar manga_fibers sin splice
   db.prepare('UPDATE manga_fibers SET active_power=0, power_level=NULL WHERE manga_id=? AND id NOT IN (SELECT CASE WHEN fiber_a_type=\'manga_fiber\' THEN fiber_a_id ELSE fiber_b_id END FROM splices WHERE manga_id=?)').run(req.params.id, req.params.id);
   // Propagate power from existing splices to manga_fibers
