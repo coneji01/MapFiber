@@ -868,13 +868,13 @@ body {
 }
 
 @keyframes flowFwd {
-  0% { stroke-dashoffset: 40; }
-  100% { stroke-dashoffset: 0; }
+  0% { stroke-dashoffset: 0; }
+  100% { stroke-dashoffset: 40; }
 }
 
 @keyframes flowRev {
-  0% { stroke-dashoffset: 0; }
-  100% { stroke-dashoffset: 40; }
+  0% { stroke-dashoffset: 40; }
+  100% { stroke-dashoffset: 0; }
 }
 
 .fl.flow-fwd {
