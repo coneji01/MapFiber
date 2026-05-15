@@ -854,7 +854,14 @@ function syncPowerState() {
     }
   }
   
-  // Luego: Splitter INPUT → OUTPUTS (si input tiene power, todas las salidas prenden)
+  // Luego: Splitter INPUT → OUTPUTS via splitter_fibers (standalone)
+  var inputSF = db.prepare('SELECT sf.*, st.loss_db FROM splitter_fibers sf JOIN splitters s ON s.id=sf.splitter_id LEFT JOIN splitter_types st ON st.id=s.splitter_type_id WHERE sf.output_number=0 AND sf.active_power=1').all();
+  for (var isf of inputSF) {
+    var outPower2 = (isf.power_level || 2.5) - (isf.loss_db || 0);
+    db.prepare('UPDATE splitter_fibers SET active_power=1, power_level=? WHERE splitter_id=? AND output_number>0').run(outPower2, isf.splitter_id);
+  }
+  
+  // Tambien via manga_fibers (legacy)
   var inputMFs = db.prepare('SELECT * FROM manga_fibers WHERE splitter_id IS NOT NULL AND (splitter_output=0 OR splitter_output IS NULL) AND active_power=1').all();
   for (var imf of inputMFs) {
     var loss = db.prepare('SELECT st.loss_db FROM splitters s JOIN splitter_types st ON st.id=s.splitter_type_id WHERE s.id=?').get(imf.splitter_id);
@@ -902,6 +909,18 @@ function syncPowerState() {
         var mf = db.prepare('SELECT id, fiber_uid FROM manga_fibers WHERE id=?').get(mfId);
         if (cf && cf.fiber_uid && mf && (!mf.fiber_uid || mf.fiber_uid !== cf.fiber_uid)) {
           db.prepare('UPDATE manga_fibers SET fiber_uid=? WHERE id=?').run(cf.fiber_uid, mfId);
+        }
+        // Tambien sync splitter_fibers (standalone)
+        var sf = db.prepare('SELECT * FROM splitter_fibers WHERE id=?').get(mfId);
+        if (!sf && mf) {
+          // Try finding splitter_fiber by matching manga_fiber properties
+          var s = db.prepare('SELECT id FROM splitters WHERE name=(SELECT name FROM manga_splitters WHERE id=?)').get(mf.splitter_id);
+          if (s) {
+            sf = db.prepare('SELECT * FROM splitter_fibers WHERE splitter_id=? AND output_number=?').get(s.id, mf.splitter_output);
+            if (sf && cf && cf.fiber_uid) {
+              db.prepare('UPDATE splitter_fibers SET fiber_uid=? WHERE id=?').run(cf.fiber_uid, sf.id);
+            }
+          }
         }
       }
     }
