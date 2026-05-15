@@ -6309,8 +6309,10 @@ var inputHasActivePower = splitterInputFibers[0] && (splitterInputFibers[0].acti
         // Determine which SIDE the cable fiber is on (LEFT or RIGHT block)
         // ⭐ FIX: usar _cablePairLeft/_cablePairRight como lo hacen las fusiones,
         // en lugar de asumir basado en splitterFlipped
-        const cableIsLeft = _cablePairLeft && _cablePairLeft[cableInfo.connId];
-        const cableIsRight = _cablePairRight && _cablePairRight[cableInfo.connId];
+        var cableIsLeft = _cablePairLeft && _cablePairLeft[cableInfo.connId];
+        var cableIsRight = _cablePairRight && _cablePairRight[cableInfo.connId];
+        // ⭐ Si no tiene par (termination block), el cable esta en LEFT por defecto
+        if (!cableIsLeft && !cableIsRight) cableIsLeft = true;
         
         let fromX, fromY, toX, toY, lineColor, colIn, colOut, strokeVal;
         
