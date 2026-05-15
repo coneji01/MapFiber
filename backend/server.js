@@ -139,9 +139,9 @@ app.post('/api/olts', (req, res) => {
   const { name, lat, lng, description, brand, model, ports_count = 0, power = 2.5 } = req.body;
   const result = db.prepare('INSERT INTO olts (name, lat, lng, description, brand, model, ports_count) VALUES (?, ?, ?, ?, ?, ?, ?)')
     .run(name, lat, lng, description, brand, model, ports_count);
-  
-  // Don't auto-create ports — user adds them manually or via SmartOLT import
-  
+
+  // Don't auto-create ports - user adds them manually or via SmartOLT import
+
   res.json({ id: result.lastInsertRowid, message: 'OLT creada' });
 });
 
@@ -161,13 +161,13 @@ app.delete('/api/olts/:id', (req, res) => {
 app.put('/api/olt-ports/:id/power', (req, res) => {
   const { power } = req.body;
   const portId = req.params.id;
-  
+
   db.prepare('UPDATE olt_ports SET power=?, operational_status=? WHERE id=?').run(
     parseFloat(power),
     parseFloat(power) > 0 ? 'Online' : 'Offline',
     portId
   );
-  
+
   // Sync with fiber_connections so manga/NAP visualizers see the power
   const hasPower = parseFloat(power) > 0;
   db.prepare('UPDATE fiber_connections SET active_power=?, power_level=? WHERE source_olt_port_id=?').run(
@@ -175,7 +175,7 @@ app.put('/api/olt-ports/:id/power', (req, res) => {
     parseFloat(power),
     portId
   );
-  
+
   // Also sync any fusions in mangas that use this fiber_connection
   const conn = db.prepare('SELECT cable_id, fiber_number FROM fiber_connections WHERE source_olt_port_id=?').get(portId);
   if (conn) {
@@ -185,32 +185,32 @@ app.put('/api/olt-ports/:id/power', (req, res) => {
         (left_type='cable' AND left_id=? AND left_fiber_number=?) OR
         (right_type='cable' AND right_id=? AND right_fiber_number=?)
     `).run(hasPower ? 1 : 0, conn.cable_id, conn.fiber_number, conn.cable_id, conn.fiber_number);
-    
+
     // Trace through all splices and update them too
     const visitados = new Set();
     function propagar(fibraId, hiloNum) {
       const key = fibraId + ':' + hiloNum;
       if (visitados.has(key)) return;
       visitados.add(key);
-      
+
       const fusiones = db.prepare(`
         SELECT * FROM fiber_splices WHERE
           (left_type='cable' AND left_id=? AND left_fiber_number=?) OR
           (right_type='cable' AND right_id=? AND right_fiber_number=?)
       `).all(fibraId, hiloNum, fibraId, hiloNum);
-      
+
       for (const f of fusiones) {
         const esIzquierda = (f.left_type === 'cable' && f.left_id === fibraId && f.left_fiber_number === hiloNum);
         const sigFibra = esIzquierda ? f.right_id : f.left_id;
         const sigHilo = esIzquierda ? f.right_fiber_number : f.left_fiber_number;
-        
+
         db.prepare('UPDATE fiber_splices SET active_power=? WHERE id=?').run(hasPower ? 1 : 0, f.id);
         propagar(sigFibra, sigHilo);
       }
     }
     propagar(conn.cable_id, conn.fiber_number);
   }
-  
+
   res.json({ message: 'Potencia actualizada y propagada a ' + (conn ? 'hilos conectados' : 'puerto') });
 });
 
@@ -219,16 +219,16 @@ app.post('/api/olts/:id/ports', (req, res) => {
   const oltId = req.params.id;
   const olt = db.prepare('SELECT * FROM olts WHERE id=?').get(oltId);
   if (!olt) return res.status(404).json({ error: 'OLT no encontrada' });
-  
+
   // Find next port number
   const maxPort = db.prepare('SELECT MAX(port_number) as max_p FROM olt_ports WHERE olt_id=?').get(oltId);
   const nextPort = (maxPort?.max_p || 0) + 1;
-  
+
   const result = db.prepare('INSERT INTO olt_ports (olt_id, port_number, power) VALUES (?, ?, ?)').run(oltId, nextPort, 2.5);
-  
+
   // Update ports_count
   db.prepare('UPDATE olts SET ports_count=ports_count+1, updated_at=CURRENT_TIMESTAMP WHERE id=?').run(oltId);
-  
+
   res.json({ id: result.lastInsertRowid, port_number: nextPort, message: 'Puerto agregado' });
 });
 
@@ -238,7 +238,7 @@ app.post('/api/olts/:id/ports/batch', (req, res) => {
   const { count = 8, power = 2.5 } = req.body;
   const olt = db.prepare('SELECT * FROM olts WHERE id=?').get(oltId);
   if (!olt) return res.status(404).json({ error: 'OLT no encontrada' });
-  
+
   // Each card starts numbering from 1 independently
   const insertPort = db.prepare('INSERT INTO olt_ports (olt_id, port_number, power) VALUES (?, ?, ?)');
   const created = [];
@@ -246,9 +246,9 @@ app.post('/api/olts/:id/ports/batch', (req, res) => {
     const result = insertPort.run(oltId, i, power);
     created.push({ id: result.lastInsertRowid, port_number: i });
   }
-  
+
   db.prepare('UPDATE olts SET ports_count=ports_count+?, updated_at=CURRENT_TIMESTAMP WHERE id=?').run(count, oltId);
-  
+
   res.json({ created, count, message: count + ' puertos agregados' });
 });
 
@@ -256,14 +256,14 @@ app.post('/api/olts/:id/ports/batch', (req, res) => {
 app.delete('/api/olt-ports/:id', (req, res) => {
   const port = db.prepare('SELECT * FROM olt_ports WHERE id=?').get(req.params.id);
   if (!port) return res.status(404).json({ error: 'Puerto no encontrado' });
-  
+
   // Disconnect any fiber connected to this port
   db.prepare('DELETE FROM fiber_connections WHERE source_olt_port_id=?').run(req.params.id);
   db.prepare('DELETE FROM olt_ports WHERE id=?').run(req.params.id);
-  
+
   // Update ports_count
   db.prepare('UPDATE olts SET ports_count=MAX(ports_count-1,0), updated_at=CURRENT_TIMESTAMP WHERE id=?').run(port.olt_id);
-  
+
   res.json({ message: 'Puerto eliminado' });
 });
 
@@ -281,7 +281,7 @@ app.post('/api/import/smartolt/cards', async (req, res) => {
     const olt = db.prepare('SELECT * FROM olts WHERE id=?').get(olt_id);
     if (!olt) return res.status(404).json({ error: 'OLT no encontrada en nuestra base de datos' });
 
-    // 2. Call SmartOLT get_olts to find matching OLT (optional — may return empty)
+    // 2. Call SmartOLT get_olts to find matching OLT (optional - may return empty)
     let smartOltId = null;
     try {
       const fullUrl = BASE + '/system/get_olts';
@@ -355,10 +355,10 @@ app.post('/api/import/smartolt/cards', async (req, res) => {
 
     // 4. VALIDATE SmartOLT response BEFORE deleting anything
     var smartoltCards = cardsData.response;
-    
+
     // If the API returns individual PON ports (with pon_port), group by board/slot
     if (Array.isArray(smartoltCards) && smartoltCards.length > 0 && smartoltCards[0].pon_port !== undefined) {
-      // Individual PON ports format — group by board
+      // Individual PON ports format - group by board
       var cardMap = {};
       smartoltCards.forEach(function(port) {
         var slot = String(port.board || port.slot || '0');
@@ -376,7 +376,7 @@ app.post('/api/import/smartolt/cards', async (req, res) => {
     if (Array.isArray(smartoltCards)) {
       smartoltCards.forEach(function(card) {
         var cardType = (card.type || card.pon_type || '').toUpperCase();
-        
+
         // Solo tarjetas GPON reales: tipo empieza con GT (GTGH, GTED, etc.)
         // o contiene GPON (para otros vendors)
         var isPONCard = cardType.startsWith('GT') || cardType.includes('GPON');
@@ -384,11 +384,11 @@ app.post('/api/import/smartolt/cards', async (req, res) => {
           console.log('SmartOLT: Skipping slot ' + (card.slot || '?') + ' type=' + cardType + ' (no es GPON)');
           return;
         }
-        
+
         var portCount = parseInt(card.ports, 10);
         if (isNaN(portCount) && Array.isArray(card.ports)) portCount = card.ports.length;
         if (!portCount || portCount <= 0) return;
-        
+
         validCards.push(card);
       });
     }
@@ -397,7 +397,7 @@ app.post('/api/import/smartolt/cards', async (req, res) => {
     validCards.forEach(function(c) { console.log('  -> Slot ' + c.slot + ' ' + c.type + ' ' + c.ports + 'P'); });
 
     if (validCards.length === 0) {
-      // ⛔ SAFETY: No valid cards from SmartOLT — do NOT delete anything!
+      // ⛔ SAFETY: No valid cards from SmartOLT - do NOT delete anything!
       return res.status(502).json({
         error: 'SmartOLT devolvió 0 tarjetas GPON válidas. No se eliminó ningún dato existente.',
         hint: 'Verifica que la OLT en SmartOLT tenga tarjetas GPON con puertos configurados.',
@@ -425,25 +425,25 @@ app.post('/api/import/smartolt/cards', async (req, res) => {
     var results = [];
     var insertCard = db.prepare('INSERT INTO olt_cards (olt_id, slot_number, name, ports_count, source) VALUES (?, ?, ?, ?, ?)');
     var insertPort = db.prepare('INSERT INTO olt_ports (olt_id, card_id, slot_number, port_number, power) VALUES (?, ?, ?, ?, ?)');
-    
+
     validCards.forEach(function(card) {
       var portCount = parseInt(card.ports, 10);
       if (isNaN(portCount) && Array.isArray(card.ports)) portCount = card.ports.length;
       if (!portCount || portCount <= 0) return;
-      
+
       var smartSlot = String(card.slot || card.board);
-      
+
       // Skip if this SmartOLT slot is already in our DB
       if (existingSlots[smartSlot]) {
         console.log('SmartOLT: Slot ' + smartSlot + ' already imported, skipping');
         return;
       }
-      
+
       // slot_number = SmartOLT slot real (2, 3, 4...), NO secuencial local
       // name = "Slot X" con el slot real de SmartOLT
       var cardResult = insertCard.run(olt_id, parseInt(smartSlot), 'Slot ' + smartSlot, portCount, 'smartolt');
       var cardId = cardResult.lastInsertRowid;
-      
+
       var created = [];
       for (var pi = 1; pi <= portCount; pi++) {
         var powerValue = 2.5;
@@ -454,7 +454,7 @@ app.post('/api/import/smartolt/cards', async (req, res) => {
         var result = insertPort.run(olt_id, cardId, pi, pi, powerValue);
         created.push({ id: result.lastInsertRowid, port_number: pi, slot_number: pi });
       }
-      
+
       if (created.length > 0) {
         results.push({
           slot: smartSlot,
@@ -477,8 +477,8 @@ app.post('/api/import/smartolt/cards', async (req, res) => {
 
     // 6. Fetch PON port details and update status/power for each port
     var ponUpdated = 0;
-    
-    // Try multiple PON endpoints — with smartOltId if available, then without
+
+    // Try multiple PON endpoints - with smartOltId if available, then without
     var ponUrls = [];
     if (smartOltId) {
       ponUrls.push('/system/get_olt_pon_ports_details/' + smartOltId);
@@ -488,7 +488,7 @@ app.post('/api/import/smartolt/cards', async (req, res) => {
     ponUrls.push('/system/get_olt_pon_ports_details');
     ponUrls.push('/system/get_pon_ports');
     ponUrls.push('/system/get_olt_details');
-    
+
     var ponResp = null;
     var ponBody = null;
     for (var ei = 0; ei < ponUrls.length; ei++) {
@@ -508,7 +508,7 @@ app.post('/api/import/smartolt/cards', async (req, res) => {
     if (!ponResp) {
       console.log('SmartOLT: No PON endpoint responded (all returned non-200)');
     }
-    
+
     if (ponResp && ponBody) {
       try {
         var ponData = JSON.parse(ponBody);
@@ -517,27 +517,27 @@ app.post('/api/import/smartolt/cards', async (req, res) => {
         var ponList = ponData.response || ponData.data || ponData;
         if (Array.isArray(ponList)) {
           var updatePort = db.prepare('UPDATE olt_ports SET power=?, operational_status=?, online_onus_count=? WHERE olt_id=? AND id=?');
-          
+
           ponList.forEach(function(pon) {
             // Try multiple field names for slot/board
             var slot = pon.board || pon.slot || pon.shelf || pon.card_id || null;
             if (slot !== null) slot = String(slot);
-            
+
             // Try multiple field names for port number
             var ponPort = parseInt(pon.pon_port || pon.port || pon.port_number || pon.index || pon.pon_id, 10);
             if (isNaN(ponPort)) return;
-            
+
             // Try multiple field names for tx power
             var txPower = parseFloat(pon.tx_power || pon.tx_power_dbm || pon.tx_power_db || pon.power || pon.signal || pon.rx_power || 0);
-            
+
             // Try multiple field names for status
             var opStatus = pon.operational_status || pon.status || pon.state || pon.admin_state || '';
             var status = (opStatus === 'Up' || opStatus === 'up' || opStatus === 'Online' || opStatus === 'online' || opStatus === '1') ? 'Online' : 'Offline';
-            
+
             // Try multiple field names for online ONU count
             var onusOnline = parseInt(pon.online_onus_count || pon.online_onus || pon.onu_count || pon.online_count || 0, 10) || 0;
-            
-            // Find the card for this slot — try matching as string or number
+
+            // Find the card for this slot - try matching as string or number
             var card = null;
             for (var ci = 0; ci < results.length; ci++) {
               var r = results[ci];
@@ -547,7 +547,7 @@ app.post('/api/import/smartolt/cards', async (req, res) => {
                 break;
               }
             }
-            
+
             if (card && card.portIds) {
               // Try both 1-indexed and 0-indexed port numbers
               var portIdx = ponPort;
@@ -558,10 +558,10 @@ app.post('/api/import/smartolt/cards', async (req, res) => {
               } else {
                 return; // Port number out of range
               }
-              
+
               var portId = card.portIds[portIdx];
               txPower = isNaN(txPower) ? 0 : txPower;
-              
+
               updatePort.run(txPower, status, onusOnline, olt_id, portId);
               ponUpdated++;
             }
@@ -577,7 +577,7 @@ app.post('/api/import/smartolt/cards', async (req, res) => {
                 if (isNaN(ponPort)) return;
                 var txPower = parseFloat(pon.tx_power || pon.tx_power_dbm || pon.power || 0);
                 var txPower = isNaN(txPower) ? 0 : txPower;
-                
+
                 var card = results.find(function(r) { return String(r.slot) === String(slot); });
                 if (card && card.portIds && ponPort >= 1 && ponPort <= card.portIds.length) {
                   var portId = card.portIds[ponPort - 1];
@@ -593,9 +593,9 @@ app.post('/api/import/smartolt/cards', async (req, res) => {
         console.log('SmartOLT: Error parsing PON data:', e.message);
       }
     }
-    
+
     if (ponUpdated === 0) {
-      console.log('SmartOLT: No PON details found — keeping default power values');
+      console.log('SmartOLT: No PON details found - keeping default power values');
     }
 
     res.json({
@@ -622,11 +622,11 @@ app.post('/api/import/smartolt/test', async (req, res) => {
   if (!subdomain || !api_key) {
     return res.status(400).json({ error: 'Faltan parámetros' });
   }
-  
+
   const BASE = 'https://' + subdomain + '.smartolt.com/api';
   const results = {};
   var endpoints = ['/system/get_olt_pon_ports_details', '/system/get_olt_cards_details', '/system/get_pon_ports', '/system/get_olt_details', '/system/get_olts'];
-  
+
   for (var epi = 0; epi < endpoints.length; epi++) {
     try {
       var ep = endpoints[epi];
@@ -639,11 +639,11 @@ app.post('/api/import/smartolt/test', async (req, res) => {
       results[ep] = { error: e.message };
     }
   }
-  
+
   res.json(results);
 });
 
-// ====== SmartOLT — refrescar potencia de todas las cards importadas ======
+// ====== SmartOLT - refrescar potencia de todas las cards importadas ======
 app.post('/api/import/smartolt/refresh-power', async (req, res) => {
   const { olt_id } = req.body;
   if (!olt_id) return res.status(400).json({ error: 'Falta olt_id' });
@@ -665,7 +665,7 @@ app.post('/api/import/smartolt/refresh-power', async (req, res) => {
       return res.status(400).json({ error: 'Se requiere api_key. Las credenciales SmartOLT no se guardan en el servidor por seguridad.' });
     }
 
-    // Try multiple PON endpoints — with smartOltId if available, then without
+    // Try multiple PON endpoints - with smartOltId if available, then without
     var ponUrls = [];
     if (smartOltId) {
       ponUrls.push('/system/get_olt_pon_ports_details/' + smartOltId);
@@ -732,16 +732,16 @@ app.post('/api/import/smartolt/refresh-power', async (req, res) => {
       var smartSlot = String(pon.board || pon.slot || '');
       var ponPortNum = parseInt(pon.pon_port || pon.port_number || pon.port || (pi + 1), 10);
       if (!smartSlot || isNaN(ponPortNum)) continue;
-      
+
       var powerVal = parseFloat(pon.tx_power || pon.tx_power_dbm || pon.power || pon.rx_power || 0);
       var statusPON = pon.operational_status || pon.status || pon.admin_status || '';
       var status = (String(statusPON).toLowerCase() === 'up' || String(statusPON).toLowerCase() === 'online' || statusPON === '1') ? 'Online' : 'Offline';
       var onuCount = parseInt(pon.online_onus_count || pon.online_onus || pon.onu_count || pon.online_count || 0, 10) || 0;
-      
+
       // Find the card for this SmartOLT slot
       var cardData = cardsBySmartSlot[smartSlot];
       if (!cardData) continue;
-      
+
       // Find the port within this card (port_number is local 1-N per card)
       var matchingPort = cardData.ports.find(function(sp) { return sp.portNumber === ponPortNum; });
       if (matchingPort) {
@@ -769,7 +769,7 @@ app.get('/api/olts/:id/connections', (req, res) => {
   if (!olt) return res.status(404).json({ error: 'OLT no encontrada' });
 
   const ports = db.prepare('SELECT * FROM olt_ports WHERE olt_id=? ORDER BY port_number').all(oltId);
-  
+
   // Get fiber connections targeting this OLT
   const fiberCons = db.prepare(`
     SELECT fc.*, c.name as cable_name, cf.color as fiber_color, cf.color_name as fiber_color_name
@@ -779,7 +779,7 @@ app.get('/api/olts/:id/connections', (req, res) => {
     WHERE (fc.source_type='olt' AND fc.source_id=?)
     ORDER BY fc.fiber_number
   `).all(oltId);
-  
+
   res.json({ olt, ports, connections: fiberCons });
 });
 
@@ -791,7 +791,7 @@ app.get('/api/naps', (req, res) => {
     FROM naps n LEFT JOIN splitter_types st ON st.id = n.splitter_type_id
     ORDER BY n.name
   `).all();
-  
+
   // Get ports for each NAP
   const getPorts = db.prepare('SELECT * FROM nap_ports WHERE nap_id = ? ORDER BY port_number');
   return res.json(naps.map(n => ({ ...n, ports: getPorts.all(n.id) })));
@@ -801,13 +801,13 @@ app.post('/api/naps', (req, res) => {
   const { name, lat, lng, description, splitter_type_id, port_capacity = 8, address } = req.body;
   const result = db.prepare('INSERT INTO naps (name, lat, lng, description, splitter_type_id, port_capacity, address) VALUES (?, ?, ?, ?, ?, ?, ?)')
     .run(name, lat, lng, description, splitter_type_id || null, port_capacity, address);
-  
+
   // Create ports for the NAP
   const insertPort = db.prepare('INSERT INTO nap_ports (nap_id, port_number) VALUES (?, ?)');
   for (let i = 1; i <= port_capacity; i++) {
     insertPort.run(result.lastInsertRowid, i);
   }
-  
+
   res.json({ id: result.lastInsertRowid, message: 'NAP creada' });
 });
 
@@ -822,11 +822,11 @@ app.put('/api/naps/:id', (req, res) => {
   if (address !== undefined) { fields.push('address=?'); values.push(address); }
   if (splitter_type_id !== undefined) { fields.push('splitter_type_id=?'); values.push(splitter_type_id); }
   fields.push('updated_at=CURRENT_TIMESTAMP');
-  
+
   if (fields.length > 1) {
     values.push(req.params.id);
     db.prepare(`UPDATE naps SET ${fields.join(', ')} WHERE id=?`).run(...values);
-    
+
     // If splitter changed, regenerate ports + reset manga_fibers + splitter assignment
     if (splitter_type_id !== undefined) {
       const splitter = db.prepare('SELECT * FROM splitter_types WHERE id=?').get(splitter_type_id);
@@ -837,18 +837,18 @@ app.put('/api/naps/:id', (req, res) => {
         for (let i = 1; i <= splitter.ports; i++) {
           insertPort.run(req.params.id, i);
         }
-        
+
         // Limpiar datos viejos del splitter anterior
         db.prepare("DELETE FROM manga_fibers WHERE source_type='nap' AND source_id=?").run(req.params.id);
         db.prepare("DELETE FROM splitter_assignments WHERE entity_type='nap' AND entity_id=?").run(req.params.id);
         db.prepare("DELETE FROM splices WHERE fiber_a_id IN (SELECT id FROM cable_points WHERE element_type='nap' AND element_id=?) OR fiber_b_id IN (SELECT id FROM cable_points WHERE element_type='nap' AND element_id=?)").run(req.params.id, req.params.id);
-        
+
         // Crear nuevo splitter y asignarlo
         var newSplitterId = db.prepare('INSERT INTO splitters (name, splitter_type_id, ports_count) VALUES (?, ?, ?)').run(
           'NAP Splitter ' + splitter.ports + 'p', splitter_type_id, splitter.ports
         ).lastInsertRowid;
         db.prepare('INSERT INTO splitter_assignments (splitter_id, entity_type, entity_id) VALUES (?, ?, ?)').run(newSplitterId, 'nap', req.params.id);
-        
+
         // Crear manga_fibers (1 entrada + N salidas)
         var napId = parseInt(req.params.id);
         var insertMF = db.prepare('INSERT INTO manga_fibers (manga_id, fiber_number, splitter_output, source_type, source_id, notes) VALUES (?, ?, ?, ?, ?, ?)');
@@ -863,31 +863,31 @@ app.put('/api/naps/:id', (req, res) => {
       }
     }
   }
-  
+
   res.json({ message: 'NAP actualizada' });
 });
 
 app.delete('/api/naps/:id', (req, res) => {
   const napId = parseInt(req.params.id);
-  
+
   // === HEAL cable route before deleting NAP ===
   // Guardar datos para restaurar fusiones despues de curar
   var _fusionRestore = []; // [{ cableId, fiberCount, beforeId, afterId }]
-  
+
   try {
     const napPts = db.prepare(
       "SELECT * FROM cable_points WHERE element_type='nap' AND element_id=? ORDER BY cable_id, sequence"
     ).all(napId);
-    
+
     if (napPts.length > 0) {
       const cablesAfectados = new Set(napPts.map(p => p.cable_id));
-      
+
       cablesAfectados.forEach(function(cid) {
         var ptsCable = napPts.filter(function(p) { return p.cable_id === cid; });
         var seqs = ptsCable.map(function(p) { return p.sequence; });
         var minSeq = Math.min.apply(null, seqs);
         var maxSeq = Math.max.apply(null, seqs);
-        
+
         // Guardar puntos ANTES y DESPUES del rango de la NAP para restaurar continuidad
         var ptBefore = db.prepare(
           'SELECT id, sequence FROM cable_points WHERE cable_id=? AND sequence<? ORDER BY sequence DESC LIMIT 1'
@@ -895,11 +895,11 @@ app.delete('/api/naps/:id', (req, res) => {
         var ptAfter = db.prepare(
           'SELECT id, sequence FROM cable_points WHERE cable_id=? AND sequence>? ORDER BY sequence ASC LIMIT 1'
         ).get(cid, maxSeq);
-        
+
         // Obtener cantidad de fibras del cable
         var cableInfo = db.prepare('SELECT fiber_count FROM cables WHERE id=?').get(cid);
         var fiberCount = (cableInfo && cableInfo.fiber_count) || 12;
-        
+
         if (ptBefore && ptAfter) {
           _fusionRestore.push({
             cableId: cid,
@@ -908,18 +908,18 @@ app.delete('/api/naps/:id', (req, res) => {
             afterId: ptAfter.id
           });
         }
-        
+
         // 1. Borrar puntos de ruta huerfanos ENTRE los puntos de la NAP
         db.prepare(
           'DELETE FROM cable_points WHERE cable_id=? AND sequence>? AND sequence<? AND element_type IS NULL AND element_id IS NULL'
         ).run(cid, minSeq, maxSeq);
-        
+
         // 2. Borrar los cable_points de la NAP (CASCADE elimina fusiones relacionadas)
         db.prepare(
           "DELETE FROM cable_points WHERE element_type='nap' AND element_id=? AND cable_id=?"
         ).run(napId, cid);
       });
-      
+
       // 3. Renumerar secuencias y RECREAR fusiones para restaurar continuidad
       _fusionRestore.forEach(function(fr) {
         var restantes = db.prepare(
@@ -931,7 +931,7 @@ app.delete('/api/naps/:id', (req, res) => {
             db.prepare('UPDATE cable_points SET sequence=? WHERE id=?').run(newSeq, p.id);
           }
         });
-        
+
         // 4. Recrear fusiones para TODAS las fibras (restaura hilos incluso los "cortados")
         //    entre el punto anterior y posterior a la NAP eliminada
         var insertFusion = db.prepare(
@@ -953,13 +953,13 @@ app.delete('/api/naps/:id', (req, res) => {
   } catch(e) {
     console.error('[HEAL-NAP] Error curando cable:', e.message);
   }
-  
+
   // Delete NAP and related data
   db.prepare('DELETE FROM nap_ports WHERE nap_id=?').run(napId);
   db.prepare("DELETE FROM manga_fibers WHERE source_type='nap' AND source_id=?").run(napId);
   db.prepare("DELETE FROM splitter_assignments WHERE entity_type='nap' AND entity_id=?").run(napId);
   db.prepare('DELETE FROM naps WHERE id=?').run(napId);
-  
+
   res.json({ message: 'NAP eliminada y cable curado' });
 });
 
@@ -992,24 +992,24 @@ app.put('/api/mangas/:id', (req, res) => {
 
 app.delete('/api/mangas/:id', (req, res) => {
   const mangaId = parseInt(req.params.id);
-  
+
   // === HEAL cable route before deleting manga ===
   var _fusionRestore = []; // [{ cableId, fiberCount, beforeId, afterId }]
-  
+
   try {
     const mangaPts = db.prepare(
       "SELECT * FROM cable_points WHERE element_type='manga' AND element_id=? ORDER BY cable_id, sequence"
     ).all(mangaId);
-    
+
     if (mangaPts.length > 0) {
       const cablesAfectados = new Set(mangaPts.map(p => p.cable_id));
-      
+
       cablesAfectados.forEach(function(cid) {
         var ptsCable = mangaPts.filter(function(p) { return p.cable_id === cid; });
         var seqs = ptsCable.map(function(p) { return p.sequence; });
         var minSeq = Math.min.apply(null, seqs);
         var maxSeq = Math.max.apply(null, seqs);
-        
+
         // Guardar puntos ANTES y DESPUES del rango de la Manga
         var ptBefore = db.prepare(
           'SELECT id, sequence FROM cable_points WHERE cable_id=? AND sequence<? ORDER BY sequence DESC LIMIT 1'
@@ -1017,10 +1017,10 @@ app.delete('/api/mangas/:id', (req, res) => {
         var ptAfter = db.prepare(
           'SELECT id, sequence FROM cable_points WHERE cable_id=? AND sequence>? ORDER BY sequence ASC LIMIT 1'
         ).get(cid, maxSeq);
-        
+
         var cableInfo = db.prepare('SELECT fiber_count FROM cables WHERE id=?').get(cid);
         var fiberCount = (cableInfo && cableInfo.fiber_count) || 12;
-        
+
         if (ptBefore && ptAfter) {
           _fusionRestore.push({
             cableId: cid,
@@ -1029,18 +1029,18 @@ app.delete('/api/mangas/:id', (req, res) => {
             afterId: ptAfter.id
           });
         }
-        
+
         // 1. Borrar puntos de ruta huerfanos ENTRE los puntos de la Manga
         db.prepare(
           'DELETE FROM cable_points WHERE cable_id=? AND sequence>? AND sequence<? AND element_type IS NULL AND element_id IS NULL'
         ).run(cid, minSeq, maxSeq);
-        
+
         // 2. Borrar los cable_points de la Manga (CASCADE elimina fusiones)
         db.prepare(
           "DELETE FROM cable_points WHERE element_type='manga' AND element_id=? AND cable_id=?"
         ).run(mangaId, cid);
       });
-      
+
       // 3. Renumerar secuencias y RECREAR fusiones
       _fusionRestore.forEach(function(fr) {
         var restantes = db.prepare(
@@ -1052,7 +1052,7 @@ app.delete('/api/mangas/:id', (req, res) => {
             db.prepare('UPDATE cable_points SET sequence=? WHERE id=?').run(newSeq, p.id);
           }
         });
-        
+
         // 4. Recrear fusiones para TODAS las fibras
         var insertFusion = db.prepare(
           'INSERT INTO fusions (name, cable_connection_id_in, fiber_in, cable_connection_id_out, fiber_out, loss_db) VALUES (?, ?, ?, ?, ?, ?)'
@@ -1073,13 +1073,13 @@ app.delete('/api/mangas/:id', (req, res) => {
   } catch(e) {
     console.error('[HEAL-MANGA] Error curando cable:', e.message);
   }
-  
+
   // Delete manga and related data
   db.prepare("DELETE FROM manga_fibers WHERE source_type='manga' AND source_id=?").run(mangaId);
   db.prepare("DELETE FROM manga_fibers WHERE manga_id=?").run(mangaId);
   db.prepare("DELETE FROM splitter_assignments WHERE entity_type='manga' AND entity_id=?").run(mangaId);
   db.prepare('DELETE FROM mangas WHERE id=?').run(mangaId);
-  
+
   res.json({ message: 'Manga eliminada y cable curado' });
 });
 
@@ -1118,7 +1118,7 @@ app.get('/api/splitters/:id', (req, res) => {
     WHERE sp.id = ?
   `).get(req.params.id);
   if (!splitter) return res.status(404).json({ error: 'Splitter no encontrado' });
-  
+
   // Get assignments
   const assignments = db.prepare(`
     SELECT sa.*,
@@ -1126,11 +1126,11 @@ app.get('/api/splitters/:id', (req, res) => {
       CASE WHEN sa.entity_type='nap' THEN (SELECT name FROM naps WHERE id=sa.entity_id) END as nap_name
     FROM splitter_assignments sa WHERE sa.splitter_id = ?
   `).all(splitter.id);
-  
+
   res.json({ ...splitter, assignments });
 });
 
-// POST — crear splitter global
+// POST - crear splitter global
 app.post('/api/splitters', (req, res) => {
   const { name, splitter_type_id, ports_count } = req.body;
   const result = db.prepare('INSERT INTO splitters (name, splitter_type_id, ports_count) VALUES (?, ?, ?)')
@@ -1138,7 +1138,7 @@ app.post('/api/splitters', (req, res) => {
   res.json({ id: result.lastInsertRowid, message: 'Splitter global creado' });
 });
 
-// PUT — editar splitter global
+// PUT - editar splitter global
 app.put('/api/splitters/:id', (req, res) => {
   const { name, splitter_type_id, ports_count } = req.body;
   const fields = [];
@@ -1154,7 +1154,7 @@ app.put('/api/splitters/:id', (req, res) => {
   res.json({ message: 'Splitter actualizado' });
 });
 
-// DELETE — eliminar splitter global (cascade removes assignments)
+// DELETE - eliminar splitter global (cascade removes assignments)
 app.delete('/api/splitters/:id', (req, res) => {
   db.prepare('DELETE FROM manga_fibers WHERE splitter_id=?').run(req.params.id);
   db.prepare('DELETE FROM splitters WHERE id=?').run(req.params.id);
@@ -1187,7 +1187,7 @@ app.get('/api/splitter-assignments', (req, res) => {
   res.json(assignments);
 });
 
-// POST — assign existing splitter to an entity
+// POST - assign existing splitter to an entity
 app.post('/api/splitter-assignments', (req, res) => {
   const { splitter_id, entity_type, entity_id } = req.body;
   if (!splitter_id || !entity_type || !entity_id) {
@@ -1202,7 +1202,7 @@ app.post('/api/splitter-assignments', (req, res) => {
   }
 });
 
-// DELETE — remove assignment (does not delete splitter)
+// DELETE - remove assignment (does not delete splitter)
 app.delete('/api/splitter-assignments/:id', (req, res) => {
   db.prepare('DELETE FROM splitter_assignments WHERE id=?').run(req.params.id);
   res.json({ message: 'Asignación eliminada' });
@@ -1241,42 +1241,42 @@ app.get('/api/mangas/:id/splitters', (req, res) => {
   res.json(splitters);
 });
 
-// POST — create + assign splitter to manga
+// POST - create + assign splitter to manga
 app.post('/api/mangas/:id/splitters', (req, res) => {
   const { name, splitter_type_id, ports_count, input_fiber } = req.body;
   const mangaId = req.params.id;
-  
-  // Create global splitter (sin input_fiber — esa columna solo está en manga_splitters)
+
+  // Create global splitter (sin input_fiber - esa columna solo está en manga_splitters)
   const result = db.prepare('INSERT INTO splitters (name, splitter_type_id, ports_count) VALUES (?, ?, ?)')
     .run(name || 'Splitter', splitter_type_id, ports_count || 8);
-  
+
   const splitterId = result.lastInsertRowid;
-  
+
   // Create assignment
   db.prepare('INSERT OR IGNORE INTO splitter_assignments (splitter_id, entity_type, entity_id) VALUES (?, ?, ?)')
     .run(splitterId, 'manga', mangaId);
-  
+
   // Also insert into manga_splitters (legacy FK target for manga_fibers.splitter_id)
   db.prepare('INSERT OR IGNORE INTO manga_splitters (id, manga_id, name, splitter_type_id, ports_count, input_fiber) VALUES (?, ?, ?, ?, ?, ?)')
     .run(splitterId, mangaId, name || 'Splitter', splitter_type_id, ports_count || 8, input_fiber || null);
-  
+
   // Auto-create manga_fibers for each output port of the splitter
   const numPorts = ports_count || 8;
   const insertMF = db.prepare('INSERT INTO manga_fibers (manga_id, fiber_number, splitter_id, splitter_output, notes) VALUES (?, ?, ?, ?, ?)');
-  
+
   const maxFiber = db.prepare('SELECT COALESCE(MAX(fiber_number), 0) as m FROM manga_fibers WHERE manga_id=?').get(mangaId);
   let fiberNum = (maxFiber?.m || 0) + 1;
-  
+
   // Create input fiber
   insertMF.run(mangaId, fiberNum, splitterId, 0, 'Entrada splitter ' + (name || 'Splitter'));
   fiberNum++;
-  
+
   // Create output fibers
   for (let i = 1; i <= numPorts; i++) {
     insertMF.run(mangaId, fiberNum, splitterId, i, 'Salida ' + i + ' ' + (name || 'Splitter'));
     fiberNum++;
   }
-  
+
   res.json({ id: splitterId, message: 'Splitter agregado a manga con ' + numPorts + ' fibras de salida' });
 });
 
@@ -1307,26 +1307,26 @@ app.delete('/api/manga-splitters/:id', (req, res) => {
 app.post('/api/mangas/:mangaId/splitters/:splitterId/init-fibers', (req, res) => {
   const { mangaId, splitterId } = req.params;
   const { ports_count = 8, entity_type } = req.body;
-  
+
   // Determine if this is a NAP or manga splitter
   // Check via splitter_assignments first (most reliable), then fall back to request body
   const sa = db.prepare('SELECT entity_type, entity_id FROM splitter_assignments WHERE splitter_id=?').get(splitterId);
   const isNap = sa ? sa.entity_type === 'nap' : entity_type === 'nap';
-  
+
   let napId = null;
   if (isNap) {
     napId = parseInt(mangaId);
   }
-  
+
   const existing = db.prepare('SELECT COUNT(*) as c FROM manga_fibers WHERE source_type=? AND source_id=? AND splitter_id=?')
     .get(isNap ? 'nap' : 'manga', isNap ? napId : mangaId, splitterId);
   if (existing.c > 0) {
     return res.json({ message: 'Ya tiene fibras' });
   }
-  
+
   const maxFiber = db.prepare('SELECT COALESCE(MAX(fiber_number), 0) as m FROM manga_fibers WHERE manga_id=?').get(mangaId);
   let fiberNum = (maxFiber?.m || 0) + 1;
-  
+
   // Ensure a row exists in mangas for NAPs (FK constraint on manga_fibers.manga_id)
   if (isNap) {
     var mangaExists = db.prepare('SELECT id FROM mangas WHERE id=?').get(mangaId);
@@ -1335,9 +1335,9 @@ app.post('/api/mangas/:mangaId/splitters/:splitterId/init-fibers', (req, res) =>
         .run(mangaId, 'NAP-' + mangaId + ' (auto)');
     }
   }
-  
+
   // For NAP splitters, don't set splitter_id (FK to manga_splitters); use source_type/source_id instead
-  // For manga splitters, use splitter_id (FK to manga_splitters) — ensure manga_splitters row exists
+  // For manga splitters, use splitter_id (FK to manga_splitters) - ensure manga_splitters row exists
   let insertMF;
   if (isNap) {
     insertMF = db.prepare('INSERT INTO manga_fibers (manga_id, fiber_number, splitter_output, source_type, source_id, notes) VALUES (?, ?, ?, ?, ?, ?)');
@@ -1363,7 +1363,7 @@ app.post('/api/mangas/:mangaId/splitters/:splitterId/init-fibers', (req, res) =>
       fiberNum++;
     }
   }
-  
+
   res.json({ message: 'Fibras creadas: 1 entrada + ' + ports_count + ' salidas' });
 });
 
@@ -1381,48 +1381,48 @@ app.get('/api/naps/:id/splitters', (req, res) => {
   res.json(splitters);
 });
 
-// POST — create + assign splitter to NAP
+// POST - create + assign splitter to NAP
 app.post('/api/naps/:id/splitters', (req, res) => {
   const { name, splitter_type_id, ports_count } = req.body;
   const napId = req.params.id;
   const numPorts = ports_count || 8;
-  
+
   // Create global splitter
   const result = db.prepare('INSERT INTO splitters (name, splitter_type_id, ports_count) VALUES (?, ?, ?)')
     .run(name || 'NAP Splitter', splitter_type_id, numPorts);
   const splitterId = result.lastInsertRowid;
-  
+
   // Assign to NAP
   db.prepare('INSERT OR IGNORE INTO splitter_assignments (splitter_id, entity_type, entity_id) VALUES (?, ?, ?)')
     .run(splitterId, 'nap', napId);
-  
+
   // Get the shared manga_id for this NAP
   var cpFirst = db.prepare("SELECT element_id FROM cable_points WHERE element_type='nap' AND element_id=? LIMIT 1").get(napId);
   var mangaId = cpFirst ? parseInt(cpFirst.element_id) : parseInt(napId);
-  
+
   // Also insert into manga_splitters (FK target for manga_fibers.splitter_id)
   db.prepare('INSERT OR IGNORE INTO manga_splitters (id, manga_id, name, splitter_type_id, ports_count) VALUES (?, ?, ?, ?, ?)')
     .run(splitterId, mangaId, name || 'NAP Splitter', splitter_type_id, numPorts);
-  
+
   // Create manga_fibers for the NAP splitter outputs
   const maxFiber = db.prepare("SELECT COALESCE(MAX(fiber_number), 0) as m FROM manga_fibers WHERE manga_id=? AND (source_type='nap' OR source_type IS NULL)").get(napId);
   let fiberNum = (maxFiber?.m || 0) + 1;
-  
+
   // Ensure a manga row exists for FK constraint
   db.prepare('INSERT OR IGNORE INTO mangas (id, name, lat, lng) VALUES (?, ?, 0, 0)').run(mangaId, 'NAP-' + napId);
-  
+
   // Create input fiber
   db.prepare('INSERT INTO manga_fibers (manga_id, fiber_number, splitter_id, splitter_output, source_type, source_id, notes) VALUES (?, ?, ?, 0, ?, ?, ?)')
     .run(mangaId, fiberNum, splitterId, 'nap', napId, 'Entrada splitter (NAP)');
   fiberNum++;
-  
+
   // Create output fibers
   for (let i = 1; i <= numPorts; i++) {
     db.prepare('INSERT INTO manga_fibers (manga_id, fiber_number, splitter_id, splitter_output, source_type, source_id, notes) VALUES (?, ?, ?, ?, ?, ?, ?)')
       .run(mangaId, fiberNum, splitterId, i, 'nap', napId, 'Salida ' + i);
     fiberNum++;
   }
-  
+
   res.json({ id: splitterId, message: 'Splitter asignado a NAP #' + napId + ' con ' + numPorts + ' salidas' });
 });
 
@@ -1481,20 +1481,20 @@ app.delete('/api/manga-fibers/:id', (req, res) => {
 // ========== Cables / Rutas ==========
 app.get('/api/cables', (req, res) => {
   const cables = db.prepare(`
-    SELECT c.*, 
+    SELECT c.*,
       (SELECT COUNT(*) FROM fiber_connections fc WHERE fc.cable_id = c.id) as fiber_count_used
     FROM cables c ORDER BY c.name
   `).all();
-  
+
   const getPoints = db.prepare('SELECT * FROM cable_points WHERE cable_id = ? ORDER BY sequence');
   const getFibers = db.prepare(`
-    SELECT fc.*, 
+    SELECT fc.*,
       CASE WHEN fc.source_type = 'olt' THEN (SELECT name FROM olts WHERE id = fc.source_id) END as source_name,
       CASE WHEN fc.source_type = 'manga' THEN (SELECT name FROM mangas WHERE id = fc.source_id) END as source_name2,
       CASE WHEN fc.target_type = 'nap' THEN (SELECT name FROM naps WHERE id = fc.target_id) END as target_name
     FROM fiber_connections fc WHERE fc.cable_id = ? ORDER BY fc.fiber_number
   `);
-  
+
   return res.json(cables.map(c => ({
     ...c,
     points: getPoints.all(c.id),
@@ -1521,24 +1521,24 @@ app.delete('/api/cables/:id', (req, res) => {
   res.json({ message: 'Cable eliminado' });
 });
 
-// Add/update cable points — preserves existing element points to avoid cascade-deleting fusions
+// Add/update cable points - preserves existing element points to avoid cascade-deleting fusions
 app.post('/api/cables/:id/points', (req, res) => {
   const { points } = req.body; // array of {lat, lng, element_type?, element_id?}
   const cableId = parseInt(req.params.id);
-  
+
   // Get existing cable points for matching
   const existingPts = db.prepare('SELECT * FROM cable_points WHERE cable_id=? ORDER BY sequence').all(cableId);
-  
-  // Delete only pure routing points (no element reference) — these can be safely recreated
+
+  // Delete only pure routing points (no element reference) - these can be safely recreated
   db.prepare('DELETE FROM cable_points WHERE cable_id=? AND element_type IS NULL AND element_id IS NULL').run(cableId);
-  
+
   // Track which old point IDs we've already updated (to avoid updating same point twice)
   var updatedIds = {};
   var updatesCount = 0, insertsCount = 0;
-  
+
   const insert = db.prepare('INSERT INTO cable_points (cable_id, sequence, lat, lng, element_type, element_id) VALUES (?, ?, ?, ?, ?, ?)');
   const updateSeq = db.prepare('UPDATE cable_points SET sequence=?, lat=?, lng=? WHERE id=?');
-  
+
   for (var pi = 0; pi < points.length; pi++) {
     var p = points[pi];
     if (p.element_type && p.element_id) {
@@ -1566,7 +1566,7 @@ app.post('/api/cables/:id/points', (req, res) => {
           }
         }
       }
-      
+
       if (matched) {
         // Update existing point in-place (preserves ID and all FK references)
         updateSeq.run(pi + 1, p.lat, p.lng, matched.id);
@@ -1578,12 +1578,12 @@ app.post('/api/cables/:id/points', (req, res) => {
         insertsCount++;
       }
     } else {
-      // Pure routing point — always insert (old ones were deleted above)
+      // Pure routing point - always insert (old ones were deleted above)
       insert.run(cableId, pi + 1, p.lat, p.lng, null, null);
       insertsCount++;
     }
   }
-  
+
   console.log('[CABLE POINTS] Cable #' + cableId + ': ' + updatesCount + ' updated, ' + insertsCount + ' inserted');
   res.json({ message: 'Puntos guardados', updated: updatesCount, inserted: insertsCount });
 });
@@ -1599,24 +1599,24 @@ app.get('/api/fibers', (req, res) => {
 });
 
 app.post('/api/fibers', (req, res) => {
-  const { cable_id, fiber_number, source_type, source_id, source_port_id, 
+  const { cable_id, fiber_number, source_type, source_id, source_port_id,
           target_type, target_id, target_port_id, source_olt_port_id } = req.body;
-  
+
   // Calculate loss
   let total_loss = 0;
   let power_level = null;
-  
+
   if (source_olt_port_id && source_type === 'olt') {
     const port = db.prepare('SELECT power FROM olt_ports WHERE id=?').get(source_olt_port_id);
     if (port) power_level = port.power;
   }
-  
-  const result = db.prepare(`INSERT INTO fiber_connections 
+
+  const result = db.prepare(`INSERT INTO fiber_connections
     (cable_id, fiber_number, source_type, source_id, source_port_id, target_type, target_id, target_port_id, source_olt_port_id, total_loss, power_level)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-    .run(cable_id, fiber_number, source_type, source_id, source_port_id || null, 
+    .run(cable_id, fiber_number, source_type, source_id, source_port_id || null,
          target_type, target_id, target_port_id || null, source_olt_port_id || null, total_loss, power_level);
-  
+
   res.json({ id: result.lastInsertRowid });
 });
 
@@ -1627,14 +1627,14 @@ app.post('/api/fibers', (req, res) => {
 
 function propagatePowerChain(fiberConnId, initialPower) {
   var visited = new Set();
-  
+
   function followChain(fcId, currentPower, depth) {
     if (depth > 25 || visited.has(fcId)) return;
     visited.add(fcId);
-    
+
     var fc = db.prepare('SELECT * FROM fiber_connections WHERE id=?').get(fcId);
     if (!fc) return;
-    
+
     // Cable attenuation
     var cable = db.prepare('SELECT * FROM cables WHERE id=?').get(fc.cable_id);
     var cableLoss = 0;
@@ -1642,7 +1642,7 @@ function propagatePowerChain(fiberConnId, initialPower) {
       var atten = cable.attenuation_db_per_km || 0.35;
       cableLoss = (cable.length_m / 1000) * atten;
     }
-    
+
     // Fusion losses on this cable
     var fusionsIn = db.prepare(`
       SELECT COALESCE(SUM(f.loss_db), 0) as total_loss
@@ -1650,12 +1650,12 @@ function propagatePowerChain(fiberConnId, initialPower) {
       WHERE cp_in.cable_id = ? AND (f.fiber_in = ? OR f.fiber_out = ?)
     `).get(fc.cable_id, fc.fiber_number, fc.fiber_number);
     var fusionLoss = fusionsIn ? (fusionsIn.total_loss || 0) : 0;
-    
+
     var powerAfterCable = currentPower - cableLoss - fusionLoss;
-    
+
     db.prepare('UPDATE fiber_connections SET active_power=1, power_level=?, total_loss=? WHERE id=?')
       .run(Math.round(powerAfterCable * 100) / 100, Math.round((cableLoss + fusionLoss) * 100) / 100, fcId);
-    
+
     // ====== TARGET: MANGA ======
     if (fc.target_type === 'manga') {
       var mangaId = fc.target_id;
@@ -1664,14 +1664,14 @@ function propagatePowerChain(fiberConnId, initialPower) {
       ).get(fc.cable_id, mangaId);
       if (!cablePt) return;
       var cablePtId = cablePt.id;
-      
+
       // --- PATH A: Fusion (cable_point → cable_point passthrough) ---
       var fusionOut = db.prepare(`
         SELECT f.*, cp_out.cable_id as out_cable_id, f.fiber_out as out_fiber
         FROM fusions f JOIN cable_points cp_out ON cp_out.id = f.cable_connection_id_out
         WHERE f.cable_connection_id_in=? AND f.fiber_in=?
       `).get(cablePtId, fc.fiber_number);
-      
+
       if (!fusionOut) {
         fusionOut = db.prepare(`
           SELECT f.*, cp_in.cable_id as out_cable_id, f.fiber_in as out_fiber
@@ -1679,14 +1679,14 @@ function propagatePowerChain(fiberConnId, initialPower) {
           WHERE f.cable_connection_id_out=? AND f.fiber_out=?
         `).get(cablePtId, fc.fiber_number);
       }
-      
+
       if (fusionOut && fusionOut.out_cable_id) {
         var nfc = db.prepare(
           'SELECT * FROM fiber_connections WHERE cable_id=? AND fiber_number=? ORDER BY id LIMIT 1'
         ).get(fusionOut.out_cable_id, fusionOut.out_fiber);
         if (nfc) { followChain(nfc.id, powerAfterCable, depth + 1); return; }
       }
-      
+
       // --- PATH B: Splice (cable_point → manga_fiber → splitter → manga_fiber → cable_point) ---
       var splices = db.prepare(`
         SELECT s.* FROM splices s
@@ -1694,7 +1694,7 @@ function propagatePowerChain(fiberConnId, initialPower) {
            OR (s.fiber_b_type='cable_fiber' AND s.fiber_b_id=?))
           AND s.manga_id=?
       `).all(cablePtId, cablePtId, mangaId);
-      
+
       splices.forEach(function(s) {
         var mfId = null;
         if (s.fiber_a_type === 'cable_fiber' && s.fiber_a_id === cablePtId && s.fiber_a_port === fc.fiber_number)
@@ -1702,30 +1702,30 @@ function propagatePowerChain(fiberConnId, initialPower) {
         else if (s.fiber_b_type === 'cable_fiber' && s.fiber_b_id === cablePtId && s.fiber_b_port === fc.fiber_number)
           mfId = s.fiber_a_id;
         if (!mfId) return;
-        
+
         var mf = db.prepare('SELECT * FROM manga_fibers WHERE id=?').get(mfId);
         if (!mf) return;
-        
+
         var powerAtMF = powerAfterCable - (s.loss_db || 0.1);
         db.prepare('UPDATE manga_fibers SET active_power=1, power_level=? WHERE id=?')
           .run(Math.round(powerAtMF * 100) / 100, mfId);
-        
+
         // If this manga_fiber is a SPLITTER INPUT (splitter_output=0), propagate through
         if (mf.splitter_id && mf.splitter_output === 0) {
           var splitter = db.prepare(
             'SELECT sp.*, st.loss_db FROM splitters sp LEFT JOIN splitter_types st ON st.id=sp.splitter_type_id WHERE sp.id=?'
           ).get(mf.splitter_id);
           if (!splitter || !splitter.loss_db) return;
-          
+
           var outPower = powerAtMF - splitter.loss_db;
           var outMFs = db.prepare(
             'SELECT * FROM manga_fibers WHERE splitter_id=? AND splitter_output>0'
           ).all(mf.splitter_id);
-          
+
           outMFs.forEach(function(outMF) {
             db.prepare('UPDATE manga_fibers SET active_power=1, power_level=? WHERE id=?')
               .run(Math.round(outPower * 100) / 100, outMF.id);
-            
+
             // Follow output splices from this manga_fiber to cable fibers
             var outSplices = db.prepare(`
               SELECT s.* FROM splices s
@@ -1733,7 +1733,7 @@ function propagatePowerChain(fiberConnId, initialPower) {
                  OR (s.fiber_b_type='manga_fiber' AND s.fiber_b_id=?))
                 AND s.manga_id=?
             `).all(outMF.id, outMF.id, mangaId);
-            
+
             outSplices.forEach(function(os) {
               var outCPId = null, outFN = null;
               if (os.fiber_a_type === 'cable_fiber' && os.fiber_b_type === 'manga_fiber' && os.fiber_b_id === outMF.id)
@@ -1741,10 +1741,10 @@ function propagatePowerChain(fiberConnId, initialPower) {
               else if (os.fiber_b_type === 'cable_fiber' && os.fiber_a_type === 'manga_fiber' && os.fiber_a_id === outMF.id)
                 { outCPId = os.fiber_b_id; outFN = os.fiber_b_port; }
               if (!outCPId || !outFN) return;
-              
+
               var outCP = db.prepare('SELECT * FROM cable_points WHERE id=?').get(outCPId);
               if (!outCP) return;
-              
+
               var powerOut = outPower - (os.loss_db || 0.1);
               var nextFc = db.prepare(
                 'SELECT * FROM fiber_connections WHERE cable_id=? AND fiber_number=? ORDER BY id LIMIT 1'
@@ -1755,7 +1755,7 @@ function propagatePowerChain(fiberConnId, initialPower) {
         }
       });
     }
-    
+
     // ====== TARGET: NAP ======
     if (fc.target_type === 'nap') {
       var napData = db.prepare(`
@@ -1769,20 +1769,20 @@ function propagatePowerChain(fiberConnId, initialPower) {
       }
     }
   }
-  
+
   followChain(fiberConnId, initialPower, 0);
 }
 
 app.put('/api/fibers/:id/activate', (req, res) => {
   const { active_power, power_level } = req.body;
-  
+
   if (active_power && power_level !== null && power_level !== undefined) {
     propagatePowerChain(parseInt(req.params.id), parseFloat(power_level));
   } else {
     db.prepare('UPDATE fiber_connections SET active_power=?, power_level=?, total_loss=? WHERE id=?')
       .run(active_power ? 1 : 0, power_level || null, req.body.total_loss || 0, req.params.id);
   }
-  
+
   res.json({ message: 'Potencia propagada en cadena' });
 });
 
@@ -1816,13 +1816,13 @@ app.delete('/api/fibers/:id', (req, res) => {
 // PUT /api/fibers/:id - general update (for power, activation, etc.)
 app.put('/api/fibers/:id', (req, res) => {
   const { active_power, power_level, cable_id, fiber_number, source_type, source_id, source_port_id, target_type, target_id, target_port_id, source_olt_port_id } = req.body;
-  
+
   const fiber = db.prepare('SELECT * FROM fiber_connections WHERE id=?').get(req.params.id);
   if (!fiber) return res.status(404).json({ error: 'Fibra no encontrada' });
-  
+
   const fields = [];
   const values = [];
-  
+
   if (active_power !== undefined) { fields.push('active_power=?'); values.push(active_power ? 1 : 0); }
   if (power_level !== undefined) { fields.push('power_level=?'); values.push(power_level); }
   if (cable_id !== undefined) { fields.push('cable_id=?'); values.push(cable_id); }
@@ -1840,12 +1840,12 @@ app.put('/api/fibers/:id', (req, res) => {
       fields.push('active_power=0'); fields.push('power_level=NULL');
     }
   }
-  
+
   if (fields.length > 0) {
     values.push(req.params.id);
     db.prepare('UPDATE fiber_connections SET ' + fields.join(', ') + ' WHERE id=?').run(...values);
   }
-  
+
   const updated = db.prepare('SELECT * FROM fiber_connections WHERE id=?').get(req.params.id);
   res.json({ message: 'Fibra actualizada', fiber: updated });
 });
@@ -1855,14 +1855,14 @@ app.put('/api/fibers/:id', (req, res) => {
 // Get full folder tree
 app.get('/api/folders', (req, res) => {
   const folders = db.prepare('SELECT * FROM folders ORDER BY parent_id IS NULL DESC, parent_id, sort_order, name').all();
-  
+
   // Get items for each folder
   const getItems = db.prepare('SELECT * FROM folder_items WHERE folder_id = ? ORDER BY sort_order, id');
   const foldersWithItems = folders.map(f => ({
     ...f,
     items: getItems.all(f.id)
   }));
-  
+
   res.json(foldersWithItems);
 });
 
@@ -2036,9 +2036,9 @@ app.post('/api/splices', (req, res) => {
   const { name, manga_id, loss_db = 0.1, lat, lng, fiber_a_type, fiber_a_id, fiber_a_port, fiber_b_type, fiber_b_id, fiber_b_port } = req.body;
   const result = db.prepare(`INSERT INTO splices (name, manga_id, loss_db, lat, lng, fiber_a_type, fiber_a_id, fiber_a_port, fiber_b_type, fiber_b_id, fiber_b_port)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-    .run(name || 'Splice', manga_id || null, loss_db, lat || null, lng || null, 
+    .run(name || 'Splice', manga_id || null, loss_db, lat || null, lng || null,
          fiber_a_type, fiber_a_id, fiber_a_port, fiber_b_type, fiber_b_id, fiber_b_port);
-  
+
   // Propagate power from cable fiber_connection to manga_fiber
   var cableConnId = null, cablePort = null, mangaFiberId = null;
   var _hasPower = false;
@@ -2133,7 +2133,7 @@ app.post('/api/splices', (req, res) => {
       }
     }
   }
-  
+
   // Propagar potencia DESDE manga_fiber (splitter output) hacia cable fiber_connection
   // Esto permite que la potencia fluya del splitter al cable y de ahi a las NAPs
   var revCableConnId = null, revCablePort = null, revMangaFiberId = null;
@@ -2158,7 +2158,7 @@ app.post('/api/splices', (req, res) => {
       }
     }
   }
-  
+
     syncPowerState();
   res.json({ id: result.lastInsertRowid, message: 'Splice creado', has_power: _hasPower ? 1 : 0 });
 });
@@ -2220,7 +2220,7 @@ app.get('/api/naps/:id/connections', (req, res) => {
   if (!nap) return res.status(404).json({ error: 'NAP no encontrada' });
 
   const ports = db.prepare('SELECT * FROM nap_ports WHERE nap_id=? ORDER BY port_number').all(napId);
-  
+
   // Get fiber connections targeting this NAP
   const fiberCons = db.prepare(`
     SELECT fc.*, c.name as cable_name, cf.color as fiber_color, cf.color_name as fiber_color_name
@@ -2256,7 +2256,7 @@ app.get('/api/naps/:id/connections', (req, res) => {
     const fiberConn = fiberCons.find(fc => fc.target_port_id === port.id);
     const sourceConn = sourceCons.find(fc => fc.source_port_id === port.id);
     const mangaFiber = mangaFibers.find(mf => mf.fiber_number === port.fiber_number);
-    
+
     let client_name = port.client_name || null;
     let fiber_number = port.fiber_number || null;
     let fiber_color = null;
@@ -2335,7 +2335,7 @@ app.get('/api/naps/:id/connections', (req, res) => {
 // ========== Connect cable fiber to NAP splitter port ==========
 app.post('/api/fiber-connections/connect', (req, res) => {
   const { cable_id, fiber_number, nap_id, nap_port_id, client_name, client_address, power_level } = req.body;
-  
+
   if (!cable_id || !fiber_number || !nap_id) {
     return res.status(400).json({ error: 'Faltan parámetros requeridos: cable_id, fiber_number, nap_id' });
   }
@@ -2368,7 +2368,7 @@ app.post('/api/fiber-connections/connect', (req, res) => {
   // Run everything in a transaction
   const result = db.transaction(() => {
     // 1. Create the fiber connection
-    const insertConn = db.prepare(`INSERT INTO fiber_connections 
+    const insertConn = db.prepare(`INSERT INTO fiber_connections
       (cable_id, fiber_number, source_type, source_id, target_type, target_id, target_port_id, power_level, active_power)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`);
     const connResult = insertConn.run(
@@ -2412,22 +2412,22 @@ app.post('/api/fiber-connections/connect', (req, res) => {
 function calcCableDistanceKm(cableId) {
   const cable = db.prepare('SELECT * FROM cables WHERE id=?').get(cableId);
   if (!cable) return 0;
-  
+
   // If cable has explicit length_m, use that
   if (cable.length_m && cable.length_m > 0) {
     return cable.length_m / 1000;
   }
-  
+
   // Fall back to GPS distance from cable points
   const cablePoints = db.prepare('SELECT * FROM cable_points WHERE cable_id=? ORDER BY sequence').all(cableId);
   if (cablePoints.length < 2) return 0;
-  
+
   let total_distance_km = 0;
   for (let i = 1; i < cablePoints.length; i++) {
     const R = 6371;
     const dLat = (cablePoints[i].lat - cablePoints[i-1].lat) * Math.PI / 180;
     const dLng = (cablePoints[i].lng - cablePoints[i-1].lng) * Math.PI / 180;
-    const a = Math.sin(dLat/2)*Math.sin(dLat/2) + 
+    const a = Math.sin(dLat/2)*Math.sin(dLat/2) +
               Math.cos(cablePoints[i-1].lat*Math.PI/180)*Math.cos(cablePoints[i].lat*Math.PI/180)*
               Math.sin(dLng/2)*Math.sin(dLng/2);
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
@@ -2451,26 +2451,26 @@ function calculateFiberPowerChain(fiberConn, oltPower) {
     _countedMangaSplitters: new Set(),
     _processedFusions: new Set()
   };
-  
+
   let currentPower = oltPower || 0;
-  
+
   // Track the fiber connection chain
   let fc = fiberConn;
   let visited = new Set();
-  
+
   while (fc && !visited.has(fc.id)) {
     visited.add(fc.id);
-    
+
     // Cable attenuation for this segment
     const distKm = calcCableDistanceKm(fc.cable_id);
     const cable = db.prepare('SELECT attenuation_db_per_km FROM cables WHERE id=?').get(fc.cable_id);
     const attenPerKm = cable?.attenuation_db_per_km || 0.35;
     const cableLoss = distKm * attenPerKm;
-    
+
     result.distance_km += distKm;
     result.cable_attenuation += cableLoss;
     currentPower -= cableLoss;
-    
+
     result.hops.push({
       type: 'cable',
       cable_id: fc.cable_id,
@@ -2479,7 +2479,7 @@ function calculateFiberPowerChain(fiberConn, oltPower) {
       cable_loss: cableLoss,
       power_after: Math.round(currentPower * 100) / 100
     });
-    
+
     // If target is a NAP → add splitter loss
     if (fc.target_type === 'nap') {
       const nap = db.prepare('SELECT st.loss_db FROM naps n LEFT JOIN splitter_types st ON st.id = n.splitter_type_id WHERE n.id=?').get(fc.target_id);
@@ -2495,11 +2495,11 @@ function calculateFiberPowerChain(fiberConn, oltPower) {
         });
       }
     }
-    
+
     // If source or target is a manga → check for manga splitter and fusions
     // Also follow fusions at any cable point on this cable for power continuity
     let nextFiberConn = null;
-    
+
     // Find cable points on this cable that have fusions for this fiber
     if (!nextFiberConn) {
       const cablePoints = db.prepare('SELECT id FROM cable_points WHERE cable_id=?').all(fc.cable_id);
@@ -2522,7 +2522,7 @@ function calculateFiberPowerChain(fiberConn, oltPower) {
             fiber_in: fusionIn.fiber_in, fiber_out: fusionIn.fiber_out,
             fusion_loss: fusionLoss, power_after: Math.round(currentPower * 100) / 100
           });
-          // After fusion, keep looking — set fc to same to continue chain
+          // After fusion, keep looking - set fc to same to continue chain
           if (fusionIn.fiber_out) {
             // Look for next fiber_connection from OUT cable point, or any more fusions
             nextFiberConn = db.prepare(`
@@ -2535,11 +2535,11 @@ function calculateFiberPowerChain(fiberConn, oltPower) {
         }
       }
     }
-    
+
     // Also check manga-specific connections (splitter + existing fusion lookup)
     if (!nextFiberConn && (fc.source_type === 'manga' || fc.target_type === 'manga')) {
       const mangaId = fc.source_type === 'manga' ? fc.source_id : fc.target_id;
-      
+
       // Add manga splitter loss if present (only once per manga)
       if (!result._countedMangaSplitters.has(mangaId)) {
         let mangaSplitter = db.prepare(`
@@ -2557,7 +2557,7 @@ function calculateFiberPowerChain(fiberConn, oltPower) {
             WHERE ms.manga_id = ?
           `).get(mangaId);
         }
-        
+
         if (mangaSplitter && mangaSplitter.loss_db > 0) {
           result._countedMangaSplitters.add(mangaId);
           result.splitter_loss += mangaSplitter.loss_db;
@@ -2570,27 +2570,27 @@ function calculateFiberPowerChain(fiberConn, oltPower) {
           });
         }
       }
-      
+
       // Find cable point for this fiber connection
       const cablePoint = db.prepare(`
-        SELECT id FROM cable_points 
+        SELECT id FROM cable_points
         WHERE cable_id = ? AND element_type = 'manga' AND element_id = ?
       `).get(fc.cable_id, mangaId);
-      
+
       if (cablePoint) {
         // Find first fusion from this cable point with this fiber (follow one linear path)
         const fusion = db.prepare(`
-          SELECT * FROM fusions 
+          SELECT * FROM fusions
           WHERE manga_id = ? AND cable_connection_id_in = ? AND fiber_in = ?
           LIMIT 1
         `).get(mangaId, cablePoint.id, fc.fiber_number);
-        
+
         if (fusion) {
           result._processedFusions.add(fusion.id);
           const fusionLoss = fusion.loss_db || 0;
           result.fusion_loss += fusionLoss;
           currentPower -= fusionLoss;
-          
+
           result.hops.push({
             type: 'fusion',
             fusion_id: fusion.id,
@@ -2599,13 +2599,13 @@ function calculateFiberPowerChain(fiberConn, oltPower) {
             fusion_loss: fusionLoss,
             power_after: Math.round(currentPower * 100) / 100
           });
-          
+
           // Look for next fiber connection (outgoing from manga)
           if (fusion.cable_connection_id_out && fusion.fiber_out) {
             const outPoint = db.prepare('SELECT * FROM cable_points WHERE id = ?').get(fusion.cable_connection_id_out);
             if (outPoint) {
               const nextFC = db.prepare(`
-                SELECT * FROM fiber_connections 
+                SELECT * FROM fiber_connections
                 WHERE cable_id = ? AND fiber_number = ?
               `).get(outPoint.cable_id, fusion.fiber_out);
               if (nextFC && !visited.has(nextFC.id)) {
@@ -2614,7 +2614,7 @@ function calculateFiberPowerChain(fiberConn, oltPower) {
             }
           }
         }
-        
+
         // Also search for fusions where this fiber appears as OUT (reverse path)
         if (!fusion && !nextFiberConn) {
           const revFusion = db.prepare(`
@@ -2624,13 +2624,13 @@ function calculateFiberPowerChain(fiberConn, oltPower) {
             WHERE f.manga_id = ? AND f.cable_connection_id_out = ? AND f.fiber_out = ?
             LIMIT 1
           `).get(mangaId, cablePoint.id, fc.fiber_number);
-          
+
           if (revFusion && !result._processedFusions.has(revFusion.id)) {
             result._processedFusions.add(revFusion.id);
             const fusionLoss = revFusion.loss_db || 0;
             result.fusion_loss += fusionLoss;
             currentPower -= fusionLoss;
-            
+
             result.hops.push({
               type: 'fusion_reverse',
               fusion_id: revFusion.id,
@@ -2639,13 +2639,13 @@ function calculateFiberPowerChain(fiberConn, oltPower) {
               fusion_loss: fusionLoss,
               power_after: Math.round(currentPower * 100) / 100
             });
-            
+
             // Find the IN fiber connection
             if (revFusion.cable_connection_id_in && revFusion.fiber_in) {
               const inPoint = db.prepare('SELECT * FROM cable_points WHERE id = ?').get(revFusion.cable_connection_id_in);
               if (inPoint) {
                 const prevFC = db.prepare(`
-                  SELECT * FROM fiber_connections 
+                  SELECT * FROM fiber_connections
                   WHERE cable_id = ? AND fiber_number = ?
                 `).get(inPoint.cable_id, revFusion.fiber_in);
                 if (prevFC && !visited.has(prevFC.id)) {
@@ -2665,19 +2665,19 @@ function calculateFiberPowerChain(fiberConn, oltPower) {
         }
       }
     }
-    
+
     fc = nextFiberConn;
   }
-  
+
   // Add connector losses
   const connLoss = result.hops.length > 0 ? 1.0 : 0.5;
   result.connector_loss = connLoss;
   currentPower -= connLoss;
-  
+
   result.total_loss = Math.round((result.olt_power - currentPower) * 100) / 100;
   result.remaining_power = Math.round(currentPower * 100) / 100;
   result.is_good = result.remaining_power >= -28;
-  
+
   return result;
 }
 
@@ -2685,7 +2685,7 @@ function calculateFiberPowerChain(fiberConn, oltPower) {
 app.get('/api/calculate-power/:fiberId', (req, res) => {
   const fiber = db.prepare('SELECT * FROM fiber_connections WHERE id=?').get(req.params.fiberId);
   if (!fiber) return res.status(404).json({ error: 'Fibra no encontrada' });
-  
+
   // Get OLT port power
   let oltPower = 0;
   if (fiber.source_olt_port_id) {
@@ -2696,7 +2696,7 @@ app.get('/api/calculate-power/:fiberId', (req, res) => {
     const port = db.prepare('SELECT power FROM olt_ports WHERE id=?').get(fiber.source_port_id);
     oltPower = port ? port.power : 2.5;
   }
-  
+
   const result = calculateFiberPowerChain(fiber, oltPower);
   res.json(result);
 });
@@ -2704,10 +2704,10 @@ app.get('/api/calculate-power/:fiberId', (req, res) => {
 // POST calculate-power with custom parameters
 app.post('/api/calculate-power', (req, res) => {
   const { fiber_connection_id, olt_power, include_fusions } = req.body;
-  
+
   const fiber = db.prepare('SELECT * FROM fiber_connections WHERE id=?').get(fiber_connection_id);
   if (!fiber) return res.status(404).json({ error: 'Fibra no encontrada' });
-  
+
   let basePower = olt_power;
   if (!basePower) {
     if (fiber.source_olt_port_id) {
@@ -2718,7 +2718,7 @@ app.post('/api/calculate-power', (req, res) => {
       basePower = port ? port.power : 2.5;
     }
   }
-  
+
   const result = calculateFiberPowerChain(fiber, basePower);
   res.json(result);
 });
@@ -2784,19 +2784,19 @@ app.post('/api/cables/:id/fibers/init', (req, res) => {
   const cableId = req.params.id;
   const cable = db.prepare('SELECT * FROM cables WHERE id=?').get(cableId);
   if (!cable) return res.status(404).json({ error: 'Cable not found' });
-  
+
   // Obtener colores estandar
   const colorCode = db.prepare('SELECT * FROM color_codes WHERE id=1').get();
   const colors = colorCode ? JSON.parse(colorCode.fusions_color_code_json) : [];
-  
+
   const existing = db.prepare('SELECT COUNT(*) as c FROM cable_fibers WHERE cable_id=?').get(cableId);
   if (existing.c > 0) {
     return res.json({ message: 'Fibers already initialized', count: existing.c });
   }
-  
+
   const insert = db.prepare('INSERT INTO cable_fibers (cable_id, fiber_number, color, color_name, status) VALUES (?, ?, ?, ?, ?)');
   const fiberCount = cable.fiber_count || 12;
-  
+
   const insertMany = db.transaction((count) => {
     for (let i = 1; i <= count; i++) {
       const colorIdx = (i - 1) % colors.length;
@@ -2804,7 +2804,7 @@ app.post('/api/cables/:id/fibers/init', (req, res) => {
       insert.run(cableId, i, color.hex || '#cccccc', color.name || '', 'available');
     }
   });
-  
+
   insertMany(fiberCount);
   const fibers = db.prepare('SELECT * FROM cable_fibers WHERE cable_id=? ORDER BY fiber_number').all(cableId);
   res.json(fibers);
@@ -2816,13 +2816,13 @@ app.put('/api/cable-fibers/:id', (req, res) => {
   if (status !== undefined) updates.push('status=?');
   if (notes !== undefined) updates.push('notes=?');
   if (updates.length === 0) return res.json({ success: false });
-  
+
   const sql = 'UPDATE cable_fibers SET ' + updates.join(', ') + ' WHERE id=?';
   const params = [];
   if (status !== undefined) params.push(status);
   if (notes !== undefined) params.push(notes);
   params.push(req.params.id);
-  
+
   db.prepare(sql).run(...params);
   res.json({ success: true });
 });
@@ -2839,7 +2839,7 @@ app.put('/api/color-codes/:id', (req, res) => {
   if (name !== undefined) { fields.push('name=?'); values.push(name); }
   if (connections_color_code_json !== undefined) { fields.push('connections_color_code_json=?'); values.push(connections_color_code_json); }
   if (fusions_color_code_json !== undefined) { fields.push('fusions_color_code_json=?'); values.push(fusions_color_code_json); }
-  
+
   if (fields.length > 0) {
     values.push(req.params.id);
     db.prepare(`UPDATE color_codes SET ${fields.join(', ')} WHERE id=?`).run(...values);
@@ -2862,9 +2862,9 @@ app.get('/api/cables/:id/routing', (req, res) => {
   const cableId = req.params.id;
   const cable = db.prepare('SELECT * FROM cables WHERE id=?').get(cableId);
   if (!cable) return res.status(404).json({ error: 'Not found' });
-  
+
   const connections = db.prepare(`
-    SELECT fc.*, 
+    SELECT fc.*,
       o.name as source_olt_name, n.name as source_nap_name, m.name as source_manga_name,
       o2.name as target_olt_name, n2.name as target_nap_name, m2.name as target_manga_name
     FROM fiber_connections fc
@@ -2876,10 +2876,10 @@ app.get('/api/cables/:id/routing', (req, res) => {
     LEFT JOIN mangas m2 ON fc.target_type='manga' AND fc.target_id=m2.id
     WHERE fc.cable_id=? ORDER BY fc.fiber_number
   `).all(cableId);
-  
+
   const fibers = db.prepare('SELECT * FROM cable_fibers WHERE cable_id=? ORDER BY fiber_number').all(cableId);
   const points = db.prepare('SELECT * FROM cable_points WHERE cable_id=? ORDER BY sequence').all(cableId);
-  
+
   const cablePointIds = points.map(p => p.id);
   let fusions = [];
   if (cablePointIds.length > 0) {
@@ -2887,7 +2887,7 @@ app.get('/api/cables/:id/routing', (req, res) => {
     fusions = db.prepare(`SELECT * FROM fusions WHERE cable_connection_id_in IN (${placeholders}) OR cable_connection_id_out IN (${placeholders})`)
       .all(...cablePointIds, ...cablePointIds);
   }
-  
+
   res.json({ cable, fibers, connections, points, fusions });
 });
 
@@ -2897,7 +2897,7 @@ app.post('/api/cables/init-all-fibers', (req, res) => {
   const colorCode = db.prepare('SELECT * FROM color_codes WHERE id=1').get();
   const colors = colorCode ? JSON.parse(colorCode.fusions_color_code_json) : [];
   const insert = db.prepare('INSERT OR IGNORE INTO cable_fibers (cable_id, fiber_number, color, color_name, status) VALUES (?, ?, ?, ?, ?)');
-  
+
   let initialized = 0;
   cables.forEach(cable => {
     const existing = db.prepare('SELECT COUNT(*) as c FROM cable_fibers WHERE cable_id=?').get(cable.id);
@@ -3145,7 +3145,7 @@ app.post('/api/fusions', (req, res) => {
   if (!fiberExists) {
     return res.status(400).json({ error: `Fibra #${fiber_in} no existe en el cable #${pointIn.cable_id}` });
   }
-  
+
   // Prevent creating 2 fusions on the same hilo
   var existingFusion = db.prepare(`
     SELECT id FROM fusions WHERE
@@ -3156,7 +3156,7 @@ app.post('/api/fusions', (req, res) => {
   if (existingFusion) {
     return res.status(409).json({ error: `El hilo #${fiber_in} ya tiene una fusion (id=${existingFusion.id}). Eliminala antes de crear otra.` });
   }
-  
+
   // Also check the output side if provided
   if (cable_connection_id_out && fiber_out) {
     var existingOut = db.prepare(`
@@ -3185,7 +3185,7 @@ app.post('/api/fusions', (req, res) => {
   }
 
   console.log('[FUSION] Creating fusion:', JSON.stringify({ name, manga_id, cable_connection_id_in, fiber_in, cable_connection_id_out, fiber_out, connection_type, loss_db }));
-  
+
   // Auto-detect cable_id from the cable_connection_id_in point
   let result;
   try {
@@ -3219,7 +3219,7 @@ app.post('/api/fusions', (req, res) => {
   if (result.lastInsertRowid) {
     db.prepare("UPDATE cable_fibers SET status='used', notes=COALESCE(notes || ' | ','') || 'fusion' WHERE cable_id=? AND fiber_number=?")
       .run(pointIn.cable_id, fiber_in);
-    
+
     // ⭐ Fusion: ambos hilos comparten el MISMO fiber_uid (son el mismo hilo fisico)
     if (cable_connection_id_out && fiber_out) {
       var pointOut = db.prepare('SELECT * FROM cable_points WHERE id=?').get(cable_connection_id_out);
@@ -3235,13 +3235,13 @@ app.post('/api/fusions', (req, res) => {
         }
       }
     }
-    
+
     // === TRACE through fusion chain to find OLT power source ===
     function hasPowerPath(cableId, fiberNum, visitados) {
       var key = cableId + ':' + fiberNum;
       if (visitados[key]) return false;
       visitados[key] = true;
-      
+
       // Check if fiber_connection connects to an OLT port that has power (status Online OR power > 0)
       var fc = db.prepare(`
         SELECT fc.id FROM fiber_connections fc
@@ -3251,7 +3251,7 @@ app.post('/api/fusions', (req, res) => {
         LIMIT 1
       `).get(cableId, fiberNum);
       if (fc) return true;
-      
+
       // Check if any fusion with source_conn_id connects to this cable+fiber
       var src = db.prepare(`
         SELECT id FROM fusions WHERE source_conn_id IS NOT NULL
@@ -3261,7 +3261,7 @@ app.post('/api/fusions', (req, res) => {
         ) LIMIT 1
       `).get(cableId, fiberNum, cableId, fiberNum);
       if (src) return true;
-      
+
       // Follow fusions to other cables
       var fusions = db.prepare(`
         SELECT f.*, cp_in.cable_id as cable_in, cp_out.cable_id as cable_out
@@ -3270,7 +3270,7 @@ app.post('/api/fusions', (req, res) => {
         LEFT JOIN cable_points cp_out ON cp_out.id = f.cable_connection_id_out
         WHERE (cp_in.cable_id=? AND f.fiber_in=?) OR (cp_out.cable_id=? AND f.fiber_out=?)
       `).all(cableId, fiberNum, cableId, fiberNum);
-      
+
       for (var fi = 0; fi < fusions.length; fi++) {
         var f = fusions[fi];
         var fromIn = (f.cable_in === cableId && f.fiber_in === fiberNum);
@@ -3280,16 +3280,16 @@ app.post('/api/fusions', (req, res) => {
       }
       return false;
     }
-    
+
     var sourceConnId = null;
     var visitIn = {};
     var hasPowerIn = pointIn && hasPowerPath(pointIn.cable_id, fiber_in, visitIn);
     var visitOut = {};
     var hasPowerOut = pointOut && pointOut.cable_id && fiber_out && hasPowerPath(pointOut.cable_id, fiber_out, visitOut);
-    
+
     if (hasPowerIn) sourceConnId = cable_connection_id_in;
     else if (hasPowerOut) sourceConnId = cable_connection_id_out;
-    
+
     if (sourceConnId) {
       db.prepare('UPDATE fusions SET source_conn_id=? WHERE id=?')
         .run(sourceConnId, result.lastInsertRowid);
@@ -3313,8 +3313,24 @@ app.post('/api/fusions', (req, res) => {
         }
       }
     }
+    
+    // ⭐ Insertar tambien en connections (nuevo modelo unificado)
+    if (cable_connection_id_out && fiber_out && result.lastInsertRowid) {
+      var existsConn = db.prepare([
+        'SELECT id FROM connections',
+        'WHERE source_cp_id=? AND source_fiber=? AND target_cp_id=? AND target_fiber=?',
+        'AND connection_type=\'fusion\''
+      ].join(' ')).get(cable_connection_id_in, fiber_in, cable_connection_id_out, fiber_out);
+      if (!existsConn) {
+        db.prepare([
+          'INSERT INTO connections',
+          '(source_cp_id, source_fiber, target_cp_id, target_fiber, connection_type, loss_db, manga_id)',
+          'VALUES (?, ?, ?, ?, \'fusion\', ?, ?)'
+        ].join(' ')).run(cable_connection_id_in, fiber_in, cable_connection_id_out, fiber_out, loss_db, manga_id || null);
+      }
+    }
   }
-
+  
   const created = db.prepare('SELECT * FROM fusions WHERE id=?').get(result.lastInsertRowid);
   res.json({ id: result.lastInsertRowid, message: 'Empalme creado', fusion: created });
 });
@@ -3393,7 +3409,7 @@ app.delete('/api/fusions/:id', (req, res) => {
   }
 
 
-  
+
     // ⭐ Dividir fiber_uid: cada lado ahora es un hilo diferente
   if (fusion.cable_in_id && fusion.fiber_in) {
     var cfIn = db.prepare('SELECT * FROM cable_fibers WHERE cable_id=? AND fiber_number=?').get(fusion.cable_in_id, fusion.fiber_in);
@@ -3406,6 +3422,14 @@ app.delete('/api/fusions/:id', (req, res) => {
     if (cfOut && cfOut.fiber_uid) {
       db.prepare('UPDATE cable_fibers SET fiber_uid=? WHERE cable_id=? AND fiber_number=?').run('fiber-' + Date.now() + '-' + fusion.cable_out_id + '-' + fusion.fiber_out, fusion.cable_out_id, fusion.fiber_out);
     }
+  }
+  // ⭐ Eliminar conexion en connections tambien
+  if (fusion.cable_connection_id_in && fusion.cable_connection_id_out) {
+    db.prepare([
+      'DELETE FROM connections',
+      'WHERE source_cp_id=? AND source_fiber=? AND target_cp_id=? AND target_fiber=?',
+      'AND connection_type=\'fusion\''
+    ].join(' ')).run(fusion.cable_connection_id_in, fusion.fiber_in, fusion.cable_connection_id_out, fusion.fiber_out);
   }
   syncPowerState();
   db.prepare('DELETE FROM fusions WHERE id=?').run(req.params.id);
@@ -3442,7 +3466,7 @@ app.get('/api/reports/summary', (req, res) => {
   `).all();
 
   const cableFibersUsage = db.prepare(`
-    SELECT c.name as cable_name, c.fiber_count as total, 
+    SELECT c.name as cable_name, c.fiber_count as total,
       (SELECT COUNT(*) FROM fiber_connections fc WHERE fc.cable_id = c.id) as used,
       (SELECT COUNT(*) FROM fiber_connections fc WHERE fc.cable_id = c.id AND fc.active_power = 1) as active
     FROM cables c
@@ -3685,7 +3709,7 @@ app.get('/api/cable-points', (req, res) => {
   res.json(db.prepare('SELECT cp.*, c.name as cable_name FROM cable_points cp LEFT JOIN cables c ON c.id = cp.cable_id ORDER BY cp.cable_id, cp.sequence').all());
 });
 
-// ========== Fusions by manga (GET) — with power calculation ==========
+// ========== Fusions by manga (GET) - with power calculation ==========
 app.get('/api/fusions', (req, res) => {
   const { manga_id } = req.query;
   let fusions;
@@ -3694,16 +3718,16 @@ app.get('/api/fusions', (req, res) => {
   } else {
     fusions = db.prepare('SELECT * FROM fusions ORDER BY id').all();
   }
-  
+
   // Calculate power for each fusion
   const fiberConns = db.prepare('SELECT * FROM fiber_connections').all();
   const powerReadings = db.prepare('SELECT * FROM power_readings ORDER BY timestamp DESC').all();
-  
+
   fusions.forEach(f => {
     const connIn = db.prepare('SELECT * FROM cable_points WHERE id=?').get(f.cable_connection_id_in);
     let activePower = false;
     let powerLevel = null;
-    
+
     if (connIn) {
       const fiberConn = fiberConns.find(fc => fc.cable_id == connIn.cable_id && fc.fiber_number == f.fiber_in);
       if (fiberConn) {
@@ -3718,7 +3742,7 @@ app.get('/api/fusions', (req, res) => {
         }
       }
     }
-    
+
     if (powerLevel !== null) {
       const loss = parseFloat(f.loss_db) || 0;
       f.power_level = powerLevel - loss;
@@ -3727,7 +3751,7 @@ app.get('/api/fusions', (req, res) => {
     }
     f.active_power = activePower;
   });
-  
+
   res.json(fusions);
 });
 
@@ -3736,12 +3760,12 @@ app.post('/api/power-readings', (req, res) => {
   const { fiber_connection_id, element_type, element_id, power_level, is_active } = req.body;
   const result = db.prepare('INSERT INTO power_readings (fiber_connection_id, element_type, element_id, power_level, is_active) VALUES (?, ?, ?, ?, ?)')
     .run(fiber_connection_id || null, element_type, element_id, power_level || null, is_active ? 1 : 0);
-  
+
   if (fiber_connection_id) {
     db.prepare('UPDATE fiber_connections SET power_level=?, active_power=? WHERE id=?')
       .run(power_level, is_active ? 1 : 0, fiber_connection_id);
   }
-  
+
   res.json({ id: result.lastInsertRowid, message: 'Medición guardada' });
 });
 
@@ -3836,25 +3860,25 @@ app.get('/api/mangas/:id/block-layout', (req, res) => {
   res.json(layouts);
 });
 
-// PUT — batch save all block layouts for a manga
+// PUT - batch save all block layouts for a manga
 app.put('/api/mangas/:id/block-layout', (req, res) => {
   const mangaId = parseInt(req.params.id);
   const blocks = req.body.blocks; // array of { block_idx, transform, flipped }
   if (!Array.isArray(blocks)) return res.status(400).json({ error: 'blocks must be an array' });
-  
+
   const upsert = db.prepare(`
     INSERT INTO manga_block_layout (manga_id, block_idx, transform, flipped, updated_at)
     VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
     ON CONFLICT(manga_id, block_idx)
     DO UPDATE SET transform=excluded.transform, flipped=excluded.flipped, updated_at=CURRENT_TIMESTAMP
   `);
-  
+
   const transaction = db.transaction(() => {
     for (const block of blocks) {
       upsert.run(mangaId, block.block_idx, block.transform || 'translate(0,0)', block.flipped ? 1 : 0);
     }
   });
-  
+
   transaction();
   res.json({ message: `Saved ${blocks.length} block layouts` });
 });
@@ -3906,7 +3930,7 @@ app.get('/api/reports/power-stats', (req, res) => {
     FROM manga_fibers mf JOIN mangas m ON m.id = mf.manga_id
     WHERE mf.active_power=1 ORDER BY mf.power_level ASC LIMIT 1
   `).get();
-  
+
   // ONU stats
   const onuOnline = db.prepare("SELECT COUNT(*) as c FROM onus WHERE status='online'").get().c;
   const onuOffline = db.prepare("SELECT COUNT(*) as c FROM onus WHERE status='offline'").get().c;
