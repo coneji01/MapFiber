@@ -5870,31 +5870,23 @@ async function openMangaVisualizer(mangaId, entityType) {
       var cableIdOut = pointOut ? pointOut.cable_id : null;
       var mismoCable = cableIdIn && cableIdOut && cableIdIn === cableIdOut;
       
-      // Dirección del data-flow:
-      // 1. _cablePairLeft nos dice QUÉ lado es el ORIGEN (izquierda)
-      // 2. Si connIn es LEFT → flujo de connIn a connOut
-      // 3. Si connOut es LEFT → flujo de connOut a connIn
-      // 4. Si no hay _cablePairLeft, usar _cablePairRight (cuál es SALIDA)
-      // 5. Si connIn es RIGHT → connOut es origen
-      // 6. Si connOut es RIGHT → connIn es origen
-      if (_cablePairLeft && _cablePairLeft[connIn]) {
-        // connIn es LEFT (origen)
+      // Dirección del data-flow: la animación va SIEMPRE desde
+      // el hilo con POTENCIA hacia el hilo SIN potencia.
+      // Si ambos tienen potencia, se usa _cablePairLeft/Right.
+      // Si ninguno tiene potencia, se usa connIn→connOut.
+      var powerIn = typeof _activePowerMap !== 'undefined' && _activePowerMap[connIn] && _activePowerMap[connIn][fIn];
+      var powerOut = typeof _activePowerMap !== 'undefined' && _activePowerMap[connOut] && _activePowerMap[connOut][fOut];
+      
+      if (powerIn && !powerOut) {
+        // ⭐ Solo connIn tiene potencia → fluye de connIn a connOut
         leftCableId = connIn; leftFiberNum = fIn;
         rightCableId = connOut; rightFiberNum = fOut;
-      } else if (_cablePairLeft && _cablePairLeft[connOut]) {
-        // connOut es LEFT (origen)
+      } else if (powerOut && !powerIn) {
+        // ⭐ Solo connOut tiene potencia → fluye de connOut a connIn
         leftCableId = connOut; leftFiberNum = fOut;
         rightCableId = connIn; rightFiberNum = fIn;
-      } else if (_cablePairRight && _cablePairRight[connIn]) {
-        // connIn es RIGHT (salida) → connOut es origen
-        leftCableId = connOut; leftFiberNum = fOut;
-        rightCableId = connIn; rightFiberNum = fIn;
-      } else if (_cablePairRight && _cablePairRight[connOut]) {
-        // connOut es RIGHT (salida) → connIn es origen
-        leftCableId = connIn; leftFiberNum = fIn;
-        rightCableId = connOut; rightFiberNum = fOut;
-      } else if (typeof _activePowerMap !== 'undefined' && _activePowerMap[connIn] && _activePowerMap[connIn][fIn] && _activePowerMap[connOut] && _activePowerMap[connOut][fOut]) {
-        // Ambos tienen potencia: usar _cablePairLeft (o secuencia como fallback)
+      } else if (powerIn && powerOut) {
+        // ⭐ Ambos tienen potencia: usar _cablePairLeft/Right
         if (_cablePairLeft && _cablePairLeft[connIn]) {
           leftCableId = connIn; leftFiberNum = fIn;
           rightCableId = connOut; rightFiberNum = fOut;
@@ -5920,22 +5912,24 @@ async function openMangaVisualizer(mangaId, entityType) {
           leftCableId = connIn; leftFiberNum = fIn;
           rightCableId = connOut; rightFiberNum = fOut;
         }
-      } else if (typeof _activePowerMap !== 'undefined' && _activePowerMap[connIn] && _activePowerMap[connIn][fIn]) {
-        leftCableId = connIn; leftFiberNum = fIn;
-        rightCableId = connOut; rightFiberNum = fOut;
-      } else if (typeof _activePowerMap !== 'undefined' && _activePowerMap[connOut] && _activePowerMap[connOut][fOut]) {
-        leftCableId = connOut; leftFiberNum = fOut;
-        rightCableId = connIn; rightFiberNum = fIn;
-      } else if (_oltHilosFuente && _oltHilosFuente[cableIdIn] && _oltHilosFuente[cableIdIn][fIn]) {
-        leftCableId = connIn; leftFiberNum = fIn;
-        rightCableId = connOut; rightFiberNum = fOut;
-      } else if (_oltHilosFuente && _oltHilosFuente[cableIdOut] && _oltHilosFuente[cableIdOut][fOut]) {
-        leftCableId = connOut; leftFiberNum = fOut;
-        rightCableId = connIn; rightFiberNum = fIn;
       } else {
-        // Fallback: connIn a la izquierda
-        leftCableId = connIn; leftFiberNum = fIn;
-        rightCableId = connOut; rightFiberNum = fOut;
+        // ⭐ Ninguno tiene potencia: usar _cablePairLeft/Right o fallback
+        if (_cablePairLeft && _cablePairLeft[connIn]) {
+          leftCableId = connIn; leftFiberNum = fIn;
+          rightCableId = connOut; rightFiberNum = fOut;
+        } else if (_cablePairLeft && _cablePairLeft[connOut]) {
+          leftCableId = connOut; leftFiberNum = fOut;
+          rightCableId = connIn; rightFiberNum = fIn;
+        } else if (_cablePairRight && _cablePairRight[connIn]) {
+          leftCableId = connOut; leftFiberNum = fOut;
+          rightCableId = connIn; rightFiberNum = fIn;
+        } else if (_cablePairRight && _cablePairRight[connOut]) {
+          leftCableId = connIn; leftFiberNum = fIn;
+          rightCableId = connOut; rightFiberNum = fOut;
+        } else {
+          leftCableId = connIn; leftFiberNum = fIn;
+          rightCableId = connOut; rightFiberNum = fOut;
+        }
       }
       
       console.log('[FUSION-DIR] fusion #' + fusion.id + ' IN=' + connIn + '#' + fIn + ' OUT=' + connOut + '#' + fOut + ' left=' + leftCableId + '#' + leftFiberNum + ' right=' + rightCableId + '#' + rightFiberNum + ' pairRight[in]=' + (_cablePairRight ? _cablePairRight[connIn] : 'N/A') + ' pairRight[out]=' + (_cablePairRight ? _cablePairRight[connOut] : 'N/A') + ' pairLeft[in]=' + (_cablePairLeft ? _cablePairLeft[connIn] : 'N/A') + ' pairLeft[out]=' + (_cablePairLeft ? _cablePairLeft[connOut] : 'N/A') + ' activeIn=' + (typeof _activePowerMap !== 'undefined' && !!_activePowerMap[connIn]) + ' activeOut=' + (typeof _activePowerMap !== 'undefined' && !!_activePowerMap[connOut]));
