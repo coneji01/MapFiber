@@ -866,6 +866,21 @@ function syncPowerState() {
       }
     }
   }
+  
+  // 5. Sincronizar cable_fibers.active_power por fiber_uid
+  // Primero limpiar todo
+  db.prepare('UPDATE cable_fibers SET active_power=0, power_level=NULL').run();
+  
+  // Luego marcar power donde fiber_uid tenga conexion activa
+  var activeFCs = db.prepare('SELECT cable_id, fiber_number, power_level FROM fiber_connections WHERE active_power=1').all();
+  var processedUIDs = {};
+  for (var afc of activeFCs) {
+    var cf = db.prepare('SELECT id, fiber_uid FROM cable_fibers WHERE cable_id=? AND fiber_number=?').get(afc.cable_id, afc.fiber_number);
+    if (cf && cf.fiber_uid && !processedUIDs[cf.fiber_uid]) {
+      processedUIDs[cf.fiber_uid] = true;
+      db.prepare('UPDATE cable_fibers SET active_power=1, power_level=? WHERE fiber_uid=?').run(afc.power_level || 2.5, cf.fiber_uid);
+    }
+  }
 }
 
 module.exports = { router, syncPowerState };

@@ -3235,6 +3235,21 @@ app.post('/api/fusions', (req, res) => {
     db.prepare("UPDATE cable_fibers SET status='used', notes=COALESCE(notes || ' | ','') || 'fusion' WHERE cable_id=? AND fiber_number=?")
       .run(pointIn.cable_id, fiber_in);
     
+    // ⭐ Fusionar fiber_uid: ambas fibras ahora son el MISMO hilo fisico
+    if (cable_connection_id_out && fiber_out) {
+      var pointOut = db.prepare('SELECT * FROM cable_points WHERE id=?').get(cable_connection_id_out);
+      if (pointOut) {
+        var cfIn = db.prepare('SELECT * FROM cable_fibers WHERE cable_id=? AND fiber_number=?').get(pointIn.cable_id, fiber_in);
+        var cfOut = db.prepare('SELECT * FROM cable_fibers WHERE cable_id=? AND fiber_number=?').get(pointOut.cable_id, fiber_out);
+        if (cfIn && cfOut && cfIn.fiber_uid && cfOut.fiber_uid && cfIn.fiber_uid !== cfOut.fiber_uid) {
+          var mergedUid = cfIn.fiber_uid;
+          if (cfOut.active_power && !cfIn.active_power) mergedUid = cfOut.fiber_uid;
+          db.prepare('UPDATE cable_fibers SET fiber_uid=? WHERE fiber_uid=?').run(mergedUid, cfOut.fiber_uid);
+          db.prepare('UPDATE cable_fibers SET fiber_uid=? WHERE fiber_uid=?').run(mergedUid, cfIn.fiber_uid);
+        }
+      }
+    }
+    
     // === TRACE through fusion chain to find OLT power source ===
     function hasPowerPath(cableId, fiberNum, visitados) {
       var key = cableId + ':' + fiberNum;
@@ -3391,6 +3406,22 @@ app.delete('/api/fusions/:id', (req, res) => {
     }
   }
 
+  // ⭐ Al romper la fusion: dividir fiber_uid (cada lado ahora es un hilo diferente)
+  if (fusion.cable_out_id && fusion.fiber_out) {
+    var cfOut = db.prepare('SELECT * FROM cable_fibers WHERE cable_id=? AND fiber_number=?').get(fusion.cable_out_id, fusion.fiber_out);
+    if (cfOut && cfOut.fiber_uid) {
+      var newUid = 'fiber-' + Date.now() + '-' + fusion.cable_out_id + '-' + fusion.fiber_out;
+      db.prepare('UPDATE cable_fibers SET fiber_uid=? WHERE id=?').run(newUid, cfOut.id);
+    }
+  }
+  if (fusion.cable_in_id && fusion.fiber_in) {
+    var cfIn = db.prepare('SELECT * FROM cable_fibers WHERE cable_id=? AND fiber_number=?').get(fusion.cable_in_id, fusion.fiber_in);
+    if (cfIn && cfIn.fiber_uid) {
+      var newUid = 'fiber-' + Date.now() + '-' + fusion.cable_in_id + '-' + fusion.fiber_in;
+      db.prepare('UPDATE cable_fibers SET fiber_uid=? WHERE id=?').run(newUid, cfIn.id);
+    }
+  }
+  
   db.prepare('DELETE FROM fusions WHERE id=?').run(req.params.id);
   res.json({ success: true, message: 'Empalme eliminado' });
 });
