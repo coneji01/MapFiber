@@ -868,14 +868,14 @@ body {
 }
 
 @keyframes powerPulse {
-  0%, 100% { filter: drop-shadow(0 0 4px currentColor); stroke-opacity: 0.8; }
-  50% { filter: drop-shadow(0 0 12px currentColor); stroke-opacity: 1; }
+  0%, 100% { stroke-opacity: 0.6; }
+  50% { stroke-opacity: 1; stroke-width: 3.5; }
 }
 
 .fl.data-flow {
-  stroke-width: 3;
+  stroke-dasharray: 12 6;
+  animation: powerPulse 1s ease-in-out infinite;
   stroke-opacity: 0.85;
-  animation: powerPulse 1.2s ease-in-out infinite;
 }
 
 .fl.active-pulse {
