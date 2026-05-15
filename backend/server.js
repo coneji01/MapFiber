@@ -3239,6 +3239,22 @@ app.post('/api/fusions', (req, res) => {
     db.prepare("UPDATE cable_fibers SET status='used', notes=COALESCE(notes || ' | ','') || 'fusion' WHERE cable_id=? AND fiber_number=?")
       .run(pointIn.cable_id, fiber_in);
     
+    // ⭐ Fusion: ambos hilos comparten el MISMO fiber_uid (son el mismo hilo fisico)
+    if (cable_connection_id_out && fiber_out) {
+      var pointOut = db.prepare('SELECT * FROM cable_points WHERE id=?').get(cable_connection_id_out);
+      if (pointOut) {
+        var cfIn = db.prepare('SELECT * FROM cable_fibers WHERE cable_id=? AND fiber_number=?').get(pointIn.cable_id, fiber_in);
+        var cfOut = db.prepare('SELECT * FROM cable_fibers WHERE cable_id=? AND fiber_number=?').get(pointOut.cable_id, fiber_out);
+        if (cfIn && cfOut && cfIn.fiber_uid && cfOut.fiber_uid && cfIn.fiber_uid !== cfOut.fiber_uid) {
+          var mergedUid = cfIn.fiber_uid;
+          if (cfOut.active_power && !cfIn.active_power) mergedUid = cfOut.fiber_uid;
+          // Usar el UID del que tiene power (o el del IN si ninguno)
+          db.prepare('UPDATE cable_fibers SET fiber_uid=? WHERE fiber_uid=?').run(mergedUid, cfOut.fiber_uid);
+          db.prepare('UPDATE cable_fibers SET fiber_uid=? WHERE fiber_uid=?').run(mergedUid, cfIn.fiber_uid);
+        }
+      }
+    }
+    
     // === TRACE through fusion chain to find OLT power source ===
     function hasPowerPath(cableId, fiberNum, visitados) {
       var key = cableId + ':' + fiberNum;
