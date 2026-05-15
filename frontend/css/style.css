@@ -869,7 +869,7 @@ body {
 
 @keyframes dataFlow {
   0% { stroke-dashoffset: 0; }
-  100% { stroke-dashoffset: -40; }
+  100% { stroke-dashoffset: 40; }
 }
 
 .fl.data-flow {
