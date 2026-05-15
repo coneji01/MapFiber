@@ -722,7 +722,6 @@ router.get('/hilos-con-potencia', (req, res) => {
     }
   }
 
-  // Sincronizar fiber_connections.active_power con los puntos traceados
   // PRIMERO: limpiar active_power en cables que ya no tienen potencia
   var cablesEnPotencia = new Set();
   var powerCablePairs = {}; // cable_id -> Set of fiber_numbers
@@ -743,14 +742,7 @@ router.get('/hilos-con-potencia', (req, res) => {
       }
     }
   }
-  // LUEGO: asegurar que las que SÍ tienen potencia estén marcadas
-  for (var ppp of todosPotencia) {
-    var cableP = db.prepare('SELECT cable_id FROM cable_points WHERE id=?').get(ppp.cable_point_id);
-    if (cableP) {
-      db.prepare('UPDATE fiber_connections SET active_power=1 WHERE cable_id=? AND fiber_number=? AND active_power=0')
-        .run(cableP.cable_id, ppp.fiber_number);
-    }
-  }
+
 
   syncPowerState();
   
@@ -799,8 +791,6 @@ function syncPowerState() {
     
     // ⭐ splitter_fibers y manga_fibers SOLO reciben power via splice propagation (pasos 4-5)
     
-    // ⭐ fiber_connections con este cable+fiber tienen power
-    db.prepare('UPDATE fiber_connections SET active_power=1, power_level=? WHERE cable_id=? AND fiber_number=?').run(powerLevel, olt.cable_id, olt.fiber_number);
   }
   
   // 4. Splitter INPUT → OUTPUTS
@@ -823,7 +813,6 @@ function syncPowerState() {
       if (out.fiber_uid) {
         db.prepare('UPDATE cable_fibers SET active_power=1, power_level=? WHERE fiber_uid=?').run(outPower, out.fiber_uid);
         db.prepare('UPDATE manga_fibers SET active_power=1, power_level=? WHERE fiber_uid=?').run(outPower, out.fiber_uid);
-        db.prepare('UPDATE fiber_connections SET active_power=1, power_level=? WHERE (cable_id, fiber_number) IN (SELECT cable_id, fiber_number FROM cable_fibers WHERE fiber_uid=?)').run(outPower, out.fiber_uid);
       }
     }
   }
@@ -839,7 +828,6 @@ function syncPowerState() {
       if (mo.fiber_uid) {
         db.prepare('UPDATE cable_fibers SET active_power=1, power_level=? WHERE fiber_uid=?').run(outPower2, mo.fiber_uid);
         db.prepare('UPDATE splitter_fibers SET active_power=1, power_level=? WHERE fiber_uid=?').run(outPower2, mo.fiber_uid);
-        db.prepare('UPDATE fiber_connections SET active_power=1, power_level=? WHERE (cable_id, fiber_number) IN (SELECT cable_id, fiber_number FROM cable_fibers WHERE fiber_uid=?)').run(outPower2, mo.fiber_uid);
       }
     }
   }
