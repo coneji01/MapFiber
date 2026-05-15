@@ -1474,6 +1474,21 @@ app.get('/api/mangas/:id/fibers', (req, res) => {
       }
     }
   });
+  // ⭐ Sync splitter outputs from cable_points.power_status (el nuevo modelo unificado)
+  var splitterSQL = 'SELECT cp.splitter_id, cp.splitter_port, cp.fiber_number ' +
+    'FROM cable_points cp ' +
+    'JOIN connections c ON c.source_cp_id = cp.id OR c.target_cp_id = cp.id ' +
+    "WHERE cp.splitter_id IS NOT NULL AND cp.power_status=1 " +
+    'AND cp.cable_id IN (SELECT cable_id FROM cable_points WHERE element_type=\'manga\' AND element_id=?) ' +
+    'GROUP BY cp.id';
+  var splitterCPs = db.prepare(splitterSQL).all(req.params.id);
+  for (var scp of splitterCPs) {
+    if (scp.splitter_port === 0) {
+      db.prepare('UPDATE manga_fibers SET active_power=1 WHERE splitter_id=? AND (splitter_output=0 OR splitter_output IS NULL) AND manga_id=?').run(scp.splitter_id, req.params.id);
+    } else {
+      db.prepare('UPDATE manga_fibers SET active_power=1 WHERE splitter_id=? AND splitter_output=? AND manga_id=?').run(scp.splitter_id, scp.splitter_port, req.params.id);
+    }
+  }
   const fibers = db.prepare('SELECT mf.*, COALESCE(sp.name, ms.name) as splitter_name FROM manga_fibers mf LEFT JOIN splitters sp ON sp.id = mf.splitter_id LEFT JOIN manga_splitters ms ON ms.id = mf.splitter_id WHERE mf.manga_id = ? ORDER BY mf.fiber_number').all(req.params.id);
   res.json(fibers);
 });

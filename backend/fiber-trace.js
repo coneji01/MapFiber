@@ -183,6 +183,18 @@ function propagarPotencia() {
     `).run(cf.cable_id, cf.fiber_number);
   }
 
+  // 7. Sync: fiber_connections.active_power (para compatibilidad con endpoints antiguos)
+  db.prepare(`
+    UPDATE fiber_connections SET active_power=0, power_level=NULL
+    WHERE active_power=1
+  `).run();
+  for (const cf of cableFibers) {
+    db.prepare(`
+      UPDATE fiber_connections SET active_power=1, power_level=?
+      WHERE cable_id=? AND fiber_number=? AND active_power=0
+    `).run(9.4, cf.cable_id, cf.fiber_number);
+  }
+
   return {
     fuentes: hilosFuente,
     potencia: todosPotencia,
