@@ -136,6 +136,53 @@ function propagarPotencia() {
     });
   }
 
+  // 4. Sync: cable_points.power_status
+  db.prepare('UPDATE cable_points SET power_status=0, power_level=NULL').run();
+  for (const p of todosPotencia) {
+    db.prepare('UPDATE cable_points SET power_status=1 WHERE id=?').run(p.cable_point_id);
+  }
+
+  // 5. Sync: manga_fibers.active_power (compatibilidad con frontend)
+  db.prepare('UPDATE manga_fibers SET active_power=0, power_level=NULL').run();
+  const splitterCPs = db.prepare(`
+    SELECT cp.splitter_id, cp.splitter_port, cp.fiber_number 
+    FROM cable_points cp
+    JOIN connections c ON c.source_cp_id = cp.id OR c.target_cp_id = cp.id
+    WHERE cp.splitter_id IS NOT NULL AND cp.power_status=1
+    GROUP BY cp.id
+  `).all();
+  for (const scp of splitterCPs) {
+    if (scp.splitter_port === 0) {
+      // Input manga_fiber: splitter_output=0
+      db.prepare(`
+        UPDATE manga_fibers SET active_power=1, power_level=9.4
+        WHERE splitter_id=? AND (splitter_output=0 OR splitter_output IS NULL)
+      `).run(scp.splitter_id);
+    } else {
+      // Output manga_fiber: splitter_output = port_number
+      db.prepare(`
+        UPDATE manga_fibers SET active_power=1, power_level=9.4
+        WHERE splitter_id=? AND splitter_output=?
+      `).run(scp.splitter_id, scp.splitter_port);
+    }
+  }
+
+  // 6. Sync: cable_fibers.active_power
+  db.prepare(`
+    UPDATE cable_fibers SET active_power=0, power_level=NULL
+    WHERE active_power=1
+  `).run();
+  const cableFibers = db.prepare(`
+    SELECT cp.cable_id, cp.fiber_number FROM cable_points cp
+    WHERE cp.cable_id IS NOT NULL AND cp.fiber_number IS NOT NULL AND cp.power_status=1
+    GROUP BY cp.cable_id, cp.fiber_number
+  `).all();
+  for (const cf of cableFibers) {
+    db.prepare(`
+      UPDATE cable_fibers SET active_power=1 WHERE cable_id=? AND fiber_number=?
+    `).run(cf.cable_id, cf.fiber_number);
+  }
+
   return {
     fuentes: hilosFuente,
     potencia: todosPotencia,
