@@ -6034,7 +6034,9 @@ async function openMangaVisualizer(mangaId, entityType) {
       // or fallback to fusion.active_power field
       const srcHasPower = typeof _activePowerMap !== 'undefined' && _activePowerMap[leftCableId] && _activePowerMap[leftCableId][srcFiberNum];
       const tgtHasPower = typeof _activePowerMap !== 'undefined' && _activePowerMap[rightCableId] && _activePowerMap[rightCableId][tgtFiberNum];
-      const hasActivePower = srcHasPower || tgtHasPower || (fusion.active_power === true || fusion.active_power === 1 || fusion.active_power === '1');
+      // ⭐ data-flow solo cuando _activePowerMap dice que hay potencia (como el ⚡)
+      // fusion.active_power de la API puede estar desactualizado
+      const hasActivePower = srcHasPower || tgtHasPower;
       let powerLevel = fusion.power_level;
       // If no power_level on fusion but we know it has power, use a default OLT power level
       if (hasActivePower && (powerLevel === null || powerLevel === undefined)) {
