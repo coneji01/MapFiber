@@ -6394,11 +6394,14 @@ var inputHasActivePower = splitterInputFibers[0] && (splitterInputFibers[0].acti
           }
         }
         
-        // ⭐ Direccion del data-flow: basada en fiber_uid (potencia por UID)
-        // cd.fibers[].active_power viene de cable_fibers (UID-based)
-        // mf.active_power viene de manga_fibers (UID-based)
+        // ⭐ Direccion del data-flow: basada en _activePowerMap (potencia por cable_point)
+        // Usar _activePowerMap primero (traza hilos-con-potencia, en tiempo real).
+        // Fallback a cd.fibers[].active_power (cable_fibers DB, puede estar desactualizado).
         var cableFiberPower = false;
-        if (cd && cd.fibers) {
+        if (cableInfo && cableInfo.connId) {
+          cableFiberPower = _activePowerMap && _activePowerMap[cableInfo.connId] && _activePowerMap[cableInfo.connId][cableFiberNum] === true;
+        }
+        if (!cableFiberPower && cd && cd.fibers) {
           var fibMatch = cd.fibers.find(function(f) { return f.fiber_number == cableFiberNum; });
           if (fibMatch) cableFiberPower = fibMatch.active_power == 1 || fibMatch.active_power === true;
         }
