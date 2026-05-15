@@ -2176,6 +2176,7 @@ app.post('/api/splices', (req, res) => {
     }
   }
   
+    syncPowerState();
   res.json({ id: result.lastInsertRowid, message: 'Splice creado', has_power: _hasPower ? 1 : 0 });
 });
 
@@ -2218,6 +2219,7 @@ app.delete('/api/splices/:id', (req, res) => {
     }
   }
   db.prepare('DELETE FROM splices WHERE id=?').run(req.params.id);
+    syncPowerState();
   res.json({ message: 'Splice eliminado' });
 });
 
@@ -3422,6 +3424,7 @@ app.delete('/api/fusions/:id', (req, res) => {
     }
   }
   
+    syncPowerState();
   db.prepare('DELETE FROM fusions WHERE id=?').run(req.params.id);
   res.json({ success: true, message: 'Empalme eliminado' });
 });
