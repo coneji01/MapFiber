@@ -86,8 +86,56 @@ async function injectFusion(connIn, fiberIn, connOut, fiberOut, fusionId, lossDb
   const colIn = await dbColor(connIn, fiberIn) || tiaColor(fiberIn);
   const colOut = await dbColor(connOut, fiberOut) || tiaColor(fiberOut);
 
-  const x1 = srcPos.x, y1 = srcPos.y;
-  const x4 = tgtPos.x, y4 = tgtPos.y;
+  const ns = 'http://www.w3.org/2000/svg';
+
+  // ⭐ Detectar potencia ANTES de computar el path
+  // La animacion stroke-dashoffset viaja de M→C, asi que M debe ser la fuente de potencia
+  const powerSrc = srcDot.getAttribute('data-has-power') === 'true';
+  const powerTgt = tgtDot.getAttribute('data-has-power') === 'true';
+  const hasPower = powerSrc || powerTgt;
+  console.log('[INJECT] POWER: src=' + connIn + '#' + fiberIn + ' hasPower=' + powerSrc + ' tgt=' + connOut + '#' + fiberOut + ' hasPower=' + powerTgt);
+
+  // ⭐ Asignar source/destino del path segun potencia:
+  // Si solo un lado tiene potencia, el path arranca desde ahi (fuente → destino)
+  // Si ambos o ninguno tienen, usar orden original
+  let pathSrcDot, pathTgtDot, pathSrcPos, pathTgtPos;
+  let pathColSrc, pathColTgt, pathFiberSrc, pathFiberTgt, pathConnSrc, pathConnTgt;
+
+  if (powerTgt && !powerSrc) {
+    // ⚡ Potencia solo en target → swap: el path debe fluir desde target hacia source
+    pathSrcDot = tgtDot; pathTgtDot = srcDot;
+    pathSrcPos = tgtPos; pathTgtPos = srcPos;
+    pathColSrc = colOut; pathColTgt = colIn;
+    pathFiberSrc = fiberOut; pathFiberTgt = fiberIn;
+    pathConnSrc = connOut; pathConnTgt = connIn;
+    console.log('[INJECT] DIR: potencia en target, path fluye ' + connOut + '#' + fiberOut + ' (M) → ' + connIn + '#' + fiberIn + ' (C)');
+  } else {
+    // Orden original (source es connIn por defecto, o ambos tienen power)
+    pathSrcDot = srcDot; pathTgtDot = tgtDot;
+    pathSrcPos = srcPos; pathTgtPos = tgtPos;
+    pathColSrc = colIn; pathColTgt = colOut;
+    pathFiberSrc = fiberIn; pathFiberTgt = fiberOut;
+    pathConnSrc = connIn; pathConnTgt = connOut;
+    if (powerSrc && !powerTgt) {
+      console.log('[INJECT] DIR: potencia en source, path fluye ' + connIn + '#' + fiberIn + ' (M) → ' + connOut + '#' + fiberOut + ' (C)');
+    }
+  }
+
+  // Propagar power al dot que no lo tenga (sobre los dots ORIGINALES)
+  if (hasPower) {
+    if (!powerSrc) srcDot.setAttribute('data-has-power', 'true');
+    if (!powerTgt) tgtDot.setAttribute('data-has-power', 'true');
+    [srcDot, tgtDot].forEach(function(d) {
+      var g = d.closest('.fiber-dot-group');
+      if (g) {
+        var j = g.querySelector('.fiber-jacket');
+        if (j) j.classList.add('fiber-powered');
+      }
+    });
+  }
+
+  const x1 = pathSrcPos.x, y1 = pathSrcPos.y;
+  const x4 = pathTgtPos.x, y4 = pathTgtPos.y;
   const dx = Math.abs(x4 - x1);
   const cpOff = Math.max(dx * 0.35, 60);
   const cpx1 = x1 < x4 ? x1 + cpOff : x1 - cpOff;
@@ -98,13 +146,11 @@ async function injectFusion(connIn, fiberIn, connOut, fiberOut, fusionId, lossDb
   const midY = (y1 + y4) / 2;
   const d = `M ${x1},${y1} C ${cpx1},${cpY1} ${cpx2},${cpY2} ${x4},${y4}`;
 
-  const ns = 'http://www.w3.org/2000/svg';
-
   // Determinar que color va en cada lado del ✂️ segun posicion visual
-  const firstIsLeft = x1 <= midX; // primer clic esta a la izquierda del ✂️?
-  const leftColor = firstIsLeft ? colIn : colOut;
-  const rightColor = firstIsLeft ? colOut : colIn;
-  console.log('[INJECT] COLOR: x1=' + x1.toFixed(1) + ' x4=' + x4.toFixed(1) + ' midX=' + midX.toFixed(1) + ' firstIsLeft=' + firstIsLeft + ' colIn=' + colIn + '(fib' + fiberIn + ') colOut=' + colOut + '(fib' + fiberOut + ') leftColor=' + leftColor + ' rightColor=' + rightColor);
+  const firstIsLeft = x1 <= midX;
+  const leftColor = firstIsLeft ? pathColSrc : pathColTgt;
+  const rightColor = firstIsLeft ? pathColTgt : pathColSrc;
+  console.log('[INJECT] COLOR: x1=' + x1.toFixed(1) + ' x4=' + x4.toFixed(1) + ' midX=' + midX.toFixed(1) + ' firstIsLeft=' + firstIsLeft + ' colSrc=' + pathColSrc + '(fib' + pathFiberSrc + ') colTgt=' + pathColTgt + '(fib' + pathFiberTgt + ') leftColor=' + leftColor + ' rightColor=' + rightColor);
 
   // Gradient con corte exacto en la posicion del boton ✂️
   let strokeVal = leftColor;
@@ -128,23 +174,6 @@ async function injectFusion(connIn, fiberIn, connOut, fiberOut, fusionId, lossDb
     strokeVal = 'url(#' + gid + ')';
   }
 
-  // Detectar potencia y propagarla: si una fibra tiene power, la otra tambien (recien fusionada)
-  const srcHasPower = srcDot.getAttribute('data-has-power') === 'true';
-  const tgtHasPower = tgtDot.getAttribute('data-has-power') === 'true';
-  const hasPower = srcHasPower || tgtHasPower;
-  // Propagar power al dot que no lo tenga
-  if (hasPower) {
-    if (!srcHasPower) srcDot.setAttribute('data-has-power', 'true');
-    if (!tgtHasPower) tgtDot.setAttribute('data-has-power', 'true');
-    // Tambien marcar el jacket
-    [srcDot, tgtDot].forEach(function(d) {
-      var g = d.closest('.fiber-dot-group');
-      if (g) {
-        var j = g.querySelector('.fiber-jacket');
-        if (j) j.classList.add('fiber-powered');
-      }
-    });
-  }
   const pathClass = 'fl' + (hasPower ? ' data-flow' : '');
   const pathOpacity = hasPower ? '0.85' : '0.5';
 
@@ -154,11 +183,11 @@ async function injectFusion(connIn, fiberIn, connOut, fiberOut, fusionId, lossDb
   path.setAttribute('stroke', strokeVal); path.setAttribute('stroke-width','2.5');
   path.setAttribute('opacity', pathOpacity); path.setAttribute('fill','none');
   path.setAttribute('data-fusion', fusionId);
-  path.setAttribute('data-fiber-in', fiberIn); path.setAttribute('data-fiber-out', fiberOut);
-  path.setAttribute('data-conn-in', connIn); path.setAttribute('data-conn-out', connOut);
+  path.setAttribute('data-fiber-in', pathFiberSrc); path.setAttribute('data-fiber-out', pathFiberTgt);
+  path.setAttribute('data-conn-in', pathConnSrc); path.setAttribute('data-conn-out', pathConnTgt);
   path.setAttribute('data-fiber-color-in', leftColor); path.setAttribute('data-fiber-color-out', rightColor);
   path.setAttribute('data-fiber-color', leftColor); path.setAttribute('data-active', hasPower ? 'true' : 'false');
-  path.setAttribute('data-fusion-power', hasPower ? '9.4' : ''); path.setAttribute('data-fiber-name', firstIsLeft ? (tiaColorName(fiberIn) || '—') : (tiaColorName(fiberOut) || '—'));
+  path.setAttribute('data-fusion-power', hasPower ? '9.4' : ''); path.setAttribute('data-fiber-name', firstIsLeft ? (tiaColorName(pathFiberSrc) || '—') : (tiaColorName(pathFiberTgt) || '—'));
   svgEl.appendChild(path);
 
   // Midpoint dot
