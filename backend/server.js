@@ -2044,7 +2044,7 @@ app.post('/api/splices', (req, res) => {
     // Mapear: cable fiber → buscar splitter cable_point
     var scp = db.prepare([
       'SELECT cp.id FROM cable_points cp',
-      'JOIN manga_fibers mf ON mf.splitter_id = cp.splitter_id AND mf.splitter_port = cp.splitter_port',
+      'JOIN manga_fibers mf ON mf.splitter_id = cp.splitter_id AND mf.splitter_output = cp.splitter_port',
       'WHERE mf.id = ? AND cp.splitter_id IS NOT NULL'
     ].join(' ')).get(fiber_b_id);
     if (scp) {
@@ -2052,13 +2052,13 @@ app.post('/api/splices', (req, res) => {
         'SELECT id FROM connections',
         'WHERE source_cp_id=? AND source_fiber=? AND target_cp_id=? AND target_fiber=?',
         'AND connection_type=\'splice\''
-      ].join(' ')).get(fiber_a_id, fiber_a_port, scp.id, fiber_a_port);
+      ].join(' ')).get(fiber_a_id, fiber_a_port, scp.id, fiber_b_port);
       if (!existsConn) {
         db.prepare([
           'INSERT INTO connections',
           '(source_cp_id, source_fiber, target_cp_id, target_fiber, connection_type, loss_db, manga_id)',
           'VALUES (?, ?, ?, ?, \'splice\', ?, ?)'
-        ].join(' ')).run(fiber_a_id, fiber_a_port, scp.id, fiber_a_port, loss_db, manga_id || null);
+        ].join(' ')).run(fiber_a_id, fiber_a_port, scp.id, fiber_b_port, loss_db, manga_id || null);
       }
     }
   }
