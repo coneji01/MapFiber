@@ -869,13 +869,14 @@ body {
 
 @keyframes powerPulse {
   0%, 100% { stroke-opacity: 0.6; }
-  50% { stroke-opacity: 1; stroke-width: 3.5; }
+  50% { stroke-opacity: 1; }
 }
 
 .fl.data-flow {
   stroke-dasharray: 12 6;
-  animation: powerPulse 1s ease-in-out infinite;
+  animation: powerPulse 0.8s ease-in-out infinite;
   stroke-opacity: 0.85;
+  transition: none !important;
 }
 
 .fl.active-pulse {
