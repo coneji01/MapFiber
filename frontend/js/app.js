@@ -6407,14 +6407,19 @@ var inputHasActivePower = splitterInputFibers[0] && (splitterInputFibers[0].acti
         }
         var splitterHasPower = mf.active_power == 1 || mf.active_power === true;
         
+        console.log('[SPLICE-DIR] id=' + splice.id + ' cablePower=' + cableFiberPower + ' splitterPower=' + splitterHasPower + ' fromX=' + (fromX||0).toFixed(0) + ' toX=' + (toX||0).toFixed(0));
         if (cableFiberPower && !splitterHasPower) {
           // Solo cable tiene power (UID tiene power) → de cable a splitter
+          console.log('[SPLICE-DIR] DECISION: cable->splitter');
           fromX = cableIsLeft ? leftStartX + leftCableBlockW : rightStartX;
           toX = splitterOutIdx === 0 ? inputPortX : (outPortX - 8);
         } else if (splitterHasPower && !cableFiberPower) {
           // Solo splitter tiene power (UID tiene power) → de splitter a cable
+          console.log('[SPLICE-DIR] DECISION: splitter->cable');
           fromX = splitterOutIdx === 0 ? inputPortX : (outPortX - 8);
           toX = cableIsLeft ? leftStartX + leftCableBlockW : rightStartX;
+        } else {
+          console.log('[SPLICE-DIR] DECISION: ambos/ninguno, mantener original fromX=' + (fromX||0).toFixed(0) + ' toX=' + (toX||0).toFixed(0));
         }
         // Si ambos o ninguno: mantener direccion original (basada en posicion del bloque)
         
