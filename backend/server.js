@@ -3062,30 +3062,30 @@ app.get('/api/mangas/:id/fusions', (req, res) => {
     SELECT f.*,
       c_in.name as cable_in_name, c_out.name as cable_out_name,
       c_in.color as cable_in_color, c_out.color as cable_out_color,
-      fc_in.fiber_number as fc_fiber_in, fc_out.fiber_number as fc_fiber_out,
-      fc_in.active_power as active_power, fc_in.power_level as power_level
+      cpf_in.fiber_number as fc_fiber_in, cpf_out.fiber_number as fc_fiber_out,
+      cpf_in.active_power as active_power, cpf_in.power_level as power_level
     FROM fusions f
     LEFT JOIN cable_points cpi ON cpi.id = f.cable_connection_id_in
     LEFT JOIN cables c_in ON c_in.id = cpi.cable_id
     LEFT JOIN cable_points cpo ON cpo.id = f.cable_connection_id_out
     LEFT JOIN cables c_out ON c_out.id = cpo.cable_id
-    LEFT JOIN fiber_connections fc_in ON fc_in.cable_id = cpi.cable_id AND fc_in.fiber_number = f.fiber_in
-    LEFT JOIN fiber_connections fc_out ON fc_out.cable_id = cpo.cable_id AND fc_out.fiber_number = f.fiber_out
+    LEFT JOIN cable_point_fibers cpf_in ON cpf_in.cable_point_id = cpi.id AND cpf_in.fiber_number = f.fiber_in
+    LEFT JOIN cable_point_fibers cpf_out ON cpf_out.cable_point_id = cpo.id AND cpf_out.fiber_number = f.fiber_out
     WHERE f.manga_id = ?
     GROUP BY f.id
     UNION ALL
     SELECT f.*,
       c_in.name as cable_in_name, c_out.name as cable_out_name,
       c_in.color as cable_in_color, c_out.color as cable_out_color,
-      fc_in.fiber_number as fc_fiber_in, fc_out.fiber_number as fc_fiber_out,
-      fc_in.active_power as active_power, fc_in.power_level as power_level
+      cpf_in.fiber_number as fc_fiber_in, cpf_out.fiber_number as fc_fiber_out,
+      cpf_in.active_power as active_power, cpf_in.power_level as power_level
     FROM fusions f
     LEFT JOIN cable_points cpi ON cpi.id = f.cable_connection_id_in
     LEFT JOIN cables c_in ON c_in.id = cpi.cable_id
     LEFT JOIN cable_points cpo ON cpo.id = f.cable_connection_id_out
     LEFT JOIN cables c_out ON c_out.id = cpo.cable_id
-    LEFT JOIN fiber_connections fc_in ON fc_in.cable_id = cpi.cable_id AND fc_in.fiber_number = f.fiber_in
-    LEFT JOIN fiber_connections fc_out ON fc_out.cable_id = cpo.cable_id AND fc_out.fiber_number = f.fiber_out
+    LEFT JOIN cable_point_fibers cpf_in ON cpf_in.cable_point_id = cpi.id AND cpf_in.fiber_number = f.fiber_in
+    LEFT JOIN cable_point_fibers cpf_out ON cpf_out.cable_point_id = cpo.id AND cpf_out.fiber_number = f.fiber_out
     WHERE (cpi.element_type='nap' AND cpi.element_id=?) OR (cpo.element_type='nap' AND cpo.element_id=?)
     GROUP BY f.id
     ORDER BY id
@@ -3099,16 +3099,16 @@ app.get('/api/cables/:id/fusions', (req, res) => {
     SELECT f.*,
       c_in.name as cable_in_name, c_out.name as cable_out_name,
       c_in.color as cable_in_color, c_out.color as cable_out_color,
-      fc_in.fiber_number as fc_fiber_in, fc_out.fiber_number as fc_fiber_out,
-      fc_in.active_power as fc_active_power_in, fc_in.power_level as fc_power_level_in,
-      fc_out.active_power as fc_active_power_out, fc_out.power_level as fc_power_level_out
+      cpf_in.fiber_number as fc_fiber_in, cpf_out.fiber_number as fc_fiber_out,
+      cpf_in.active_power as fc_active_power_in, cpf_in.power_level as fc_power_level_in,
+      cpf_out.active_power as fc_active_power_out, cpf_out.power_level as fc_power_level_out
     FROM fusions f
     LEFT JOIN cable_points cpi ON cpi.id = f.cable_connection_id_in
     LEFT JOIN cables c_in ON c_in.id = cpi.cable_id
     LEFT JOIN cable_points cpo ON cpo.id = f.cable_connection_id_out
     LEFT JOIN cables c_out ON c_out.id = cpo.cable_id
-    LEFT JOIN fiber_connections fc_in ON fc_in.cable_id = cpi.cable_id AND fc_in.fiber_number = f.fiber_in
-    LEFT JOIN fiber_connections fc_out ON fc_out.cable_id = cpo.cable_id AND fc_out.fiber_number = f.fiber_out
+    LEFT JOIN cable_point_fibers cpf_in ON cpf_in.cable_point_id = cpi.id AND cpf_in.fiber_number = f.fiber_in
+    LEFT JOIN cable_point_fibers cpf_out ON cpf_out.cable_point_id = cpo.id AND cpf_out.fiber_number = f.fiber_out
     WHERE cpi.cable_id = ? OR cpo.cable_id = ?
     GROUP BY f.id
     ORDER BY f.id
@@ -3248,8 +3248,7 @@ app.post('/api/fusions', (req, res) => {
           if (cpfOut.active_power && !cpfIn.active_power) mergedUid = cpfOut.fiber_uid;
           db.prepare('UPDATE cable_point_fibers SET fiber_uid=? WHERE fiber_uid=?').run(mergedUid, cpfOut.fiber_uid);
           db.prepare('UPDATE cable_point_fibers SET fiber_uid=? WHERE fiber_uid=?').run(mergedUid, cpfIn.fiber_uid);
-          // Sync cable_fibers from cable_point_fibers (take first matching UID)
-          db.prepare('UPDATE cable_fibers SET fiber_uid=(SELECT fiber_uid FROM cable_point_fibers WHERE cable_point_id=? AND fiber_number=? LIMIT 1) WHERE cable_id=? AND fiber_number=?').run(cable_connection_id_in, fiber_in, pointIn.cable_id, fiber_in);
+
         }
       }
     }
