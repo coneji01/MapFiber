@@ -6803,6 +6803,11 @@ Promise.resolve().then(async () => {
             var swapFibIn = leftFirst ? first.fiberNumber : fiberNum;
             var swapOut = leftFirst ? cableConnId : first.cableConnectionId;
             var swapFibOut = leftFirst ? fiberNum : first.fiberNumber;
+            if (swapIn === swapOut) {
+              showToast('❌ No puedes fusionar dos hilos del mismo bloque');
+              clearFiberSelection();
+              return;
+            }
             console.log('[MANGA-FUSION] Creando fusion entre:', JSON.stringify({ mangaId, cableConnId_in: swapIn, fiber_in: swapFibIn, cableConnId_out: swapOut, fiber_out: swapFibOut, leftFirst: leftFirst }));
             var fusionBody2 = {
                 cable_connection_id_in: swapIn,
