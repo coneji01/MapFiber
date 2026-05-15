@@ -775,6 +775,7 @@ function syncPowerState() {
   db.prepare('UPDATE cable_fibers SET active_power=0, power_level=NULL').run();
   db.prepare('UPDATE splitter_fibers SET active_power=0, power_level=NULL').run();
   db.prepare('UPDATE manga_fibers SET active_power=0, power_level=NULL').run();
+  db.prepare('UPDATE cable_point_fibers SET active_power=0, power_level=NULL').run();
   
   // 2. Activar conexiones OLT
   var oltPowered = db.prepare(`

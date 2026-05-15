@@ -3413,11 +3413,15 @@ app.delete('/api/fusions/:id', (req, res) => {
   // ⭐ Al romper la fusion: dividir fiber_uid a NIVEL de CABLE_POINT
   var now = Date.now();
   
-  // Lado OUT: nuevo UID para el cable_point de salida
+  // Lado OUT: nuevo UID para el cable_point de salida y TODOS los downstream
   var cpOut = db.prepare('SELECT * FROM cable_points WHERE id=?').get(fusion.cable_connection_id_out);
   if (cpOut && fusion.fiber_out) {
     var newUidOut = 'fiber-' + now + '-' + cpOut.cable_id + '-' + fusion.fiber_out + '-cp' + cpOut.id;
     db.prepare('UPDATE cable_point_fibers SET fiber_uid=? WHERE cable_point_id=? AND fiber_number=?').run(newUidOut, cpOut.id, fusion.fiber_out);
+    // Si es el mismo cable, propagar el UID a TODOS los cable_points con secuencia MAYOR
+    if (fusion.cable_in_id === fusion.cable_out_id) {
+      db.prepare('UPDATE cable_point_fibers SET fiber_uid=? WHERE fiber_number=? AND cable_point_id IN (SELECT id FROM cable_points WHERE cable_id=? AND sequence>? AND id!=?)').run(newUidOut, fusion.fiber_out, cpOut.cable_id, cpOut.sequence, cpOut.id);
+    }
   }
   
   // Lado IN: mantener el UID original (no cambiar, o cambiarlo solo si cable_in !== cable_out)
