@@ -294,9 +294,9 @@ function injectSplice(cableConnId, cableFiber, splitterMfId, splitterPort, splic
   const colOut = dotColor(splitterDot, splitterPort > 0 ? splitterPort : 1);
 
   const isInput = splitterPort === 0;
-  // ⭐ stroke-dashoffset ahora anima de START→END (CSS 40→0).
-  // INPUT: power fluye cable→splitter → M=cable (fuente), C=splitter
-  // OUTPUT: power fluye splitter→cable → M=splitter (fuente), C=cable
+  // ⭐ stroke-dashoffset 40→0: animacion viaja de START→END (M→C).
+  // INPUT: power fluye cable→splitter → M=cable(fuente), C=splitter
+  // OUTPUT: power fluye splitter→cable → M=splitter(fuente), C=cable
   var px1 = isInput ? srcPos.x : tgtPos.x, py1 = isInput ? srcPos.y : tgtPos.y;
   var px4 = isInput ? tgtPos.x : srcPos.x, py4 = isInput ? srcPos.y : tgtPos.y;
   console.log('[INJECT-SPLICE] DIR: isInput=' + isInput + ' cable.x=' + srcPos.x.toFixed(0) + ' splitter.x=' + tgtPos.x.toFixed(0) + ' px1=' + px1.toFixed(0) + ' px4=' + px4.toFixed(0) + ' dir=' + (px1 < px4 ? 'L→R' : 'R→L'));
