@@ -1428,73 +1428,34 @@ app.post('/api/naps/:id/splitters', (req, res) => {
 
 // Manga fibers
 app.get('/api/mangas/:id/fibers', (req, res) => {
-  // ⭐ Actualizar power desde cable_points (nuevo modelo unificado)
+  const mangaId = req.params.id;
+  // ⭐ Nuevo modelo: sync power desde cable_points.power_status
   try {
     const { propagarPotencia } = require('./fiber-trace');
     if (typeof propagarPotencia === 'function') propagarPotencia();
   } catch(e) {}
-  // Limpiar manga_fibers sin splice
-  db.prepare('UPDATE manga_fibers SET active_power=0, power_level=NULL WHERE manga_id=? AND id NOT IN (SELECT CASE WHEN fiber_a_type=\'manga_fiber\' THEN fiber_a_id ELSE fiber_b_id END FROM splices WHERE manga_id=?)').run(req.params.id, req.params.id);
-  // Propagate power from existing splices to manga_fibers
-  const splices = db.prepare('SELECT * FROM splices WHERE manga_id=?').all(req.params.id);
-  splices.forEach(function(s) {
-    var cableConnId = null, cablePort = null, mangaFiberId = null;
-    if (s.fiber_a_type === 'cable_fiber' && s.fiber_b_type === 'manga_fiber') {
-      cableConnId = s.fiber_a_id; cablePort = s.fiber_a_port; mangaFiberId = s.fiber_b_id;
-    } else if (s.fiber_a_type === 'manga_fiber' && s.fiber_b_type === 'cable_fiber') {
-      cableConnId = s.fiber_b_id; cablePort = s.fiber_b_port; mangaFiberId = s.fiber_a_id;
-    }
-    if (cableConnId && mangaFiberId) {
-      var cablePt = db.prepare('SELECT cable_id FROM cable_points WHERE id=?').get(cableConnId);
-      if (cablePt) {
-        var fc = db.prepare('SELECT * FROM fiber_connections WHERE cable_id=? AND fiber_number=? AND active_power=1 LIMIT 1').get(cablePt.cable_id, cablePort);
-        if (fc) {
-          db.prepare('UPDATE manga_fibers SET active_power=1, power_level=? WHERE id=? AND (active_power=0 OR active_power IS NULL)').run(fc.power_level, mangaFiberId);
-          // Also propagate to splitter outputs
-          var mf = db.prepare('SELECT * FROM manga_fibers WHERE id=?').get(mangaFiberId);
-          if (mf) {
-            // Find the splitter — either by splitter_id (manga splitters) or source_type/source_id (NAP splitters)
-            var splitter = null;
-            var splitterId = null;
-            if (mf.splitter_id) {
-              splitter = db.prepare('SELECT st.loss_db FROM splitters sp LEFT JOIN splitter_types st ON st.id=sp.splitter_type_id WHERE sp.id=?') .get(mf.splitter_id);
-              if (!splitter) splitter = db.prepare('SELECT st.loss_db FROM manga_splitters ms LEFT JOIN splitter_types st ON st.id=ms.splitter_type_id WHERE ms.id=?').get(mf.splitter_id);
-              splitterId = mf.splitter_id;
-            } else if (mf.source_type === 'nap') {
-              // Find splitter assigned to this NAP
-              var napSplitter = db.prepare('SELECT sp.id, st.loss_db FROM splitters sp JOIN splitter_assignments sa ON sa.splitter_id = sp.id LEFT JOIN splitter_types st ON st.id=sp.splitter_type_id WHERE sa.entity_type=? AND sa.entity_id=? LIMIT 1').get('nap', mf.source_id);
-              if (napSplitter) { splitter = napSplitter; splitterId = napSplitter.id; }
-            }
-            if (splitter && fc.power_level !== null) {
-              var outPower = Math.round((fc.power_level - splitter.loss_db) * 100) / 100;
-              // For manga splitters, update by splitter_id; for NAP, update by source_type/source_id
-              if (mf.splitter_id) {
-                db.prepare('UPDATE manga_fibers SET active_power=1, power_level=? WHERE splitter_id=? AND splitter_output>0 AND (active_power=0 OR active_power IS NULL)').run(outPower, mf.splitter_id);
-              } else if (mf.source_type === 'nap') {
-                db.prepare('UPDATE manga_fibers SET active_power=1, power_level=? WHERE source_type=? AND source_id=? AND splitter_output>0 AND (active_power=0 OR active_power IS NULL)').run(outPower, 'nap', mf.source_id);
-              }
-            }
-          }
-        }
-      }
-    }
-  });
-  // ⭐ Sync splitter outputs from cable_points.power_status (el nuevo modelo unificado)
-  var splitterSQL = 'SELECT cp.splitter_id, cp.splitter_port, cp.fiber_number ' +
-    'FROM cable_points cp ' +
-    'JOIN connections c ON c.source_cp_id = cp.id OR c.target_cp_id = cp.id ' +
-    "WHERE cp.splitter_id IS NOT NULL AND cp.power_status=1 " +
-    'AND cp.cable_id IN (SELECT cable_id FROM cable_points WHERE element_type=\'manga\' AND element_id=?) ' +
-    'GROUP BY cp.id';
-  var splitterCPs = db.prepare(splitterSQL).all(req.params.id);
-  for (var scp of splitterCPs) {
-    if (scp.splitter_port === 0) {
-      db.prepare('UPDATE manga_fibers SET active_power=1 WHERE splitter_id=? AND (splitter_output=0 OR splitter_output IS NULL) AND manga_id=?').run(scp.splitter_id, req.params.id);
-    } else {
-      db.prepare('UPDATE manga_fibers SET active_power=1 WHERE splitter_id=? AND splitter_output=? AND manga_id=?').run(scp.splitter_id, scp.splitter_port, req.params.id);
+  // Limpiar y re-sync desde cable_points
+  db.prepare('UPDATE manga_fibers SET active_power=0, power_level=NULL WHERE manga_id=?').run(mangaId);
+  // Splitter inputs: conectar con cable_points con power_status=1 via connections
+  var poweredInputs = db.prepare([
+    'SELECT DISTINCT mf.id, c.source_fiber as fiber_num',
+    'FROM connections c',
+    'JOIN cable_points cp ON cp.id = c.target_cp_id OR cp.id = c.source_cp_id',
+    'JOIN cable_points cp_in ON cp_in.id = (CASE WHEN c.target_cp_id = cp.id THEN c.source_cp_id ELSE c.target_cp_id END)',
+    'JOIN manga_fibers mf ON mf.splitter_id = cp.splitter_id AND mf.splitter_output = cp.splitter_port',
+    'WHERE cp.splitter_id IS NOT NULL',
+    'AND cp.power_status = 1',
+    'AND mf.manga_id = ?'
+  ].join(' ')).all(mangaId);
+  for (var pi of poweredInputs) {
+    db.prepare('UPDATE manga_fibers SET active_power=1 WHERE id=?').run(pi.id);
+    // Propagar a outputs del splitter
+    var mf = db.prepare('SELECT * FROM manga_fibers WHERE id=?').get(pi.id);
+    if (mf && mf.splitter_id) {
+      db.prepare('UPDATE manga_fibers SET active_power=1 WHERE splitter_id=? AND splitter_output>0 AND manga_id=?').run(mf.splitter_id, mangaId);
     }
   }
-  const fibers = db.prepare('SELECT mf.*, COALESCE(sp.name, ms.name) as splitter_name FROM manga_fibers mf LEFT JOIN splitters sp ON sp.id = mf.splitter_id LEFT JOIN manga_splitters ms ON ms.id = mf.splitter_id WHERE mf.manga_id = ? ORDER BY mf.fiber_number').all(req.params.id);
+  const fibers = db.prepare('SELECT mf.*, COALESCE(sp.name, ms.name) as splitter_name FROM manga_fibers mf LEFT JOIN splitters sp ON sp.id = mf.splitter_id LEFT JOIN manga_splitters ms ON ms.id = mf.splitter_id WHERE mf.manga_id = ? ORDER BY mf.fiber_number').all(mangaId);
   res.json(fibers);
 });
 
