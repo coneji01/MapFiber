@@ -5993,8 +5993,8 @@ async function openMangaVisualizer(mangaId, entityType) {
       }
       const lineOpacity = '1';
       const fusionIdAttr = `data-fusion="${fusion.id}"`;
-      const fiberInAttr = `data-fiber-in="${srcFiberNum}"`;
-      const fiberOutAttr = `data-fiber-out="${tgtFiberNum}"`;
+      const fiberInAttr = `data-fiber-in="${fIn}"`;
+      const fiberOutAttr = `data-fiber-out="${fOut}"`;
       const connInAttr = `data-conn-in="${fusion.cable_connection_id_in}"`;
       const connOutAttr = `data-conn-out="${fusion.cable_connection_id_out || ''}"`;
       
