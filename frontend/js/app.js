@@ -6522,14 +6522,15 @@ var inputHasActivePower = splitterInputFibers[0] && (splitterInputFibers[0].acti
             }
           });
           
-          // 3. Pulse fusion lines — data-flow style (excluye splices de splitter)
+          // 3. Pulse fusion lines — solo las que tienen data-active="true"
+          // (data-active se setea en el render segun _activePowerMap, respeta cortes)
           var fusionPathsIn = svgEl.querySelectorAll('.fl[data-fiber-in="' + hiloNum + '"][data-conn-in="' + connId + '"]:not([data-splice])');
           fusionPathsIn.forEach(function(p) {
-            p.classList.add('data-flow');
+            if (p.getAttribute('data-active') === 'true') p.classList.add('data-flow');
           });
           var fusionPathsOut = svgEl.querySelectorAll('.fl[data-fiber-out="' + hiloNum + '"][data-conn-out="' + connId + '"]:not([data-splice])');
           fusionPathsOut.forEach(function(p) {
-            p.classList.add('data-flow');
+            if (p.getAttribute('data-active') === 'true') p.classList.add('data-flow');
           });
         });
         
