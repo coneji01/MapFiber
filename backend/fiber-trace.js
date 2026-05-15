@@ -376,16 +376,15 @@ router.get('/hilos-con-potencia', (req, res) => {
               LIMIT 1
             `).get(punto.id, fiberNum, punto.id, fiberNum);
             if (!spliceCheck) {
-              // ⭐ Sin fusion Y sin splice: la fibra pasa a traves de la manga
-              // (pass-through, mismo cable). NO es corte. Tratar como punto de ruteo.
-              // El hilo es continuo en el mismo cable.
-              // NOTA: Si se corto una fusion aqui, el OTRO cable ya no recibe potencia
-              // porque el trace solo camina desde fuentes OLT. Al no haber fusion,
-              // el otro cable no se alcanza.
-            } else {
-              // Hay splice → marcar punto, la seccion de ruteo manejara la continuacion
+              // ⛔ Sin fusion Y sin splice → hilo CORTADO
+              // Si antes habia una fusion y se elimino, el corte detiene la potencia.
+              // Las fibras pasantes se crean con fusiones auto al insertar la manga,
+              // asi que si no hay fusion es porque el usuario la corto.
               visitadosPuntos.add(puntoKey);
+              break;
             }
+            // Hay splice → marcar punto, la seccion de ruteo manejara la continuacion
+            visitadosPuntos.add(puntoKey);
           } else {
             // ✅ Fusion existe → marcar el otro lado
             var otroLadoId = (fwd.cable_connection_id_in === punto.id)
@@ -514,13 +513,12 @@ router.get('/hilos-con-potencia', (req, res) => {
                 LIMIT 1
               `).get(dp.id, fNumDest, dp.id, fNumDest);
               if (!spAntes) {
-                // ⭐ Sin fusion Y sin splice: pass-through en manga
-                // La fibra es continua en el mismo cable, tratar como ruteo
+                // ⛔ Sin fusion Y sin splice → hilo cortado
                 visitadosPuntos.add(dpKey);
-              } else {
-                // Hay splice: marcar punto y seguir — saltar fusion-specific code
-                visitadosPuntos.add(dpKey);
+                break;
               }
+              // Hay splice: marcar punto y seguir — saltar fusion-specific code
+              visitadosPuntos.add(dpKey);
             } else {
               // Hay fusion: marcar ambos lados
               visitadosPuntos.add(dpKey);
