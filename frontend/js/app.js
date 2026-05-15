@@ -5529,7 +5529,7 @@ async function openMangaVisualizer(mangaId, entityType) {
   
   // ====== SVG ======
   let svgLines = '';
-  let svgDefs = '<marker id="flow-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="#00ff88" opacity="0.9"/></marker>';  // arrow for data-flow
+  let svgDefs = '';  // accumulates <linearGradient> elements
   const w = 1600;
   const h = 1000;
   svgLines = `<rect width="${w}" height="${h}" fill="#555" rx="8" />`;
@@ -6026,8 +6026,7 @@ async function openMangaVisualizer(mangaId, entityType) {
       }
       
       // Draw bezier curve for the fusion
-      const arrowMarker = hasActivePower ? ' marker-end="url(#flow-arrow)"' : '';
-      svgLines += `<path class="fl ${activeClass}" d="M ${x1},${srcY} C ${x1 + cpOffsetX},${srcY} ${x4 - cpOffsetX},${tgtY} ${x4},${tgtY}" stroke="${strokeValue}" stroke-width="2.5" opacity="${lineOpacity}" fill="none"${arrowMarker} ${fusionIdAttr} ${fiberInAttr} ${fiberOutAttr} ${connInAttr} ${connOutAttr} data-fiber-color-in="${colorIn}" data-fiber-color-out="${colorOut}" data-fiber-color="${colorIn}" data-active="${hasActivePower ? 'true' : 'false'}" data-fusion-power="${hasActivePower && powerLevel !== null ? powerLevel.toFixed(1) : ''}" data-fiber-name="${tiaColorName(srcFiberNum) || '—'}" />`;
+      svgLines += `<path class="fl ${activeClass}" d="M ${x1},${srcY} C ${x1 + cpOffsetX},${srcY} ${x4 - cpOffsetX},${tgtY} ${x4},${tgtY}" stroke="${strokeValue}" stroke-width="2.5" opacity="${lineOpacity}" fill="none" ${fusionIdAttr} ${fiberInAttr} ${fiberOutAttr} ${connInAttr} ${connOutAttr} data-fiber-color-in="${colorIn}" data-fiber-color-out="${colorOut}" data-fiber-color="${colorIn}" data-active="${hasActivePower ? 'true' : 'false'}" data-fusion-power="${hasActivePower && powerLevel !== null ? powerLevel.toFixed(1) : ''}" data-fiber-name="${tiaColorName(srcFiberNum) || '—'}" />`;
       // Fusion dot at midpoint (bicolor if colors differ)
       const dotR = hasActivePower ? 6 : 4;
       const dotClass = hasActivePower ? 'fl-dot active-dot' : 'fl-dot';
@@ -6336,9 +6335,8 @@ async function openMangaVisualizer(mangaId, entityType) {
         const hasPower = mf.active_power && mf.power_level !== null;
         const activeClass = hasPower ? 'data-flow' : '';
         
-        const arrowMarker2 = hasPower ? ' marker-end="url(#flow-arrow)"' : '';
         svgLines += `<path class="fl ${activeClass}" d="M ${fromX},${fromY} C ${fromX + cpOff},${fromY} ${toX - cpOff},${toY} ${toX},${toY}" 
-          stroke="${strokeVal}" stroke-width="3.5" opacity="${hasPower ? '1' : '0.8'}" fill="none"${arrowMarker2}
+          stroke="${strokeVal}" stroke-width="3.5" opacity="${hasPower ? '1' : '0.8'}" fill="none" 
           data-splice="${splice.id}" data-fiber-in="${cableFiberNum}" data-fiber-out="${mf.fiber_number || ''}"
           data-fiber-color-in="${colIn}" data-fiber-color-out="${colOut}"
           data-conn-in="${cableInfo.connId}" data-conn-out="${splice.fiber_a_type === 'manga_fiber' ? splice.fiber_a_id : splice.fiber_b_id || ''}"
