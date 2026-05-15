@@ -5943,16 +5943,20 @@ async function openMangaVisualizer(mangaId, entityType) {
         leftCableId = connOut; leftFiberNum = fOut;
         rightCableId = connIn; rightFiberNum = fIn;
       } else if (powerIn && powerOut) {
-        // ⭐ Ambos tienen potencia: usar SECUENCIA (menor = mas cerca de OLT)
-        if (pointIn && pointOut) {
+        // ⭐ Ambos tienen potencia: usar source_conn_id de la fusion
+        // source_conn_id guarda el cable_point que trae la potencia desde la OLT
+        if (fusion.source_conn_id && parseInt(fusion.source_conn_id) === connIn) {
+          leftCableId = connIn; leftFiberNum = fIn;
+          rightCableId = connOut; rightFiberNum = fOut;
+        } else if (fusion.source_conn_id && parseInt(fusion.source_conn_id) === connOut) {
+          leftCableId = connOut; leftFiberNum = fOut;
+          rightCableId = connIn; rightFiberNum = fIn;
+        } else if (pointIn && pointOut) {
+          // Fallback: secuencia (menor = mas cerca de OLT)
           if (parseInt(pointIn.sequence) <= parseInt(pointOut.sequence)) {
             leftCableId = connIn; leftFiberNum = fIn;
             rightCableId = connOut; rightFiberNum = fOut;
           } else {
-            leftCableId = connOut; leftFiberNum = fOut;
-            rightCableId = connIn; rightFiberNum = fIn;
-          }
-        } else {
           leftCableId = connIn; leftFiberNum = fIn;
           rightCableId = connOut; rightFiberNum = fOut;
         }
