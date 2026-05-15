@@ -864,7 +864,18 @@ function syncPowerState() {
         if (cf && cf.fiber_uid && mf && (!mf.fiber_uid || mf.fiber_uid !== cf.fiber_uid)) {
           db.prepare('UPDATE manga_fibers SET fiber_uid=? WHERE id=?').run(cf.fiber_uid, mfId);
         }
-        // Tambien sync splitter_fibers (standalone)
+        // Sync splitter_fibers from manga_fibers matching UID
+        if (mf && mf.fiber_uid) {
+          var sfr = db.prepare('SELECT sf.id FROM splitter_fibers sf JOIN manga_splitters ms ON ms.splitter_type_id = (SELECT splitter_type_id FROM splitters WHERE id=sf.splitter_id) WHERE ms.id=? AND sf.output_number=?').get(mf.splitter_id, mf.splitter_output);
+          if (!sfr) {
+            // Fallback: buscar por splitter_id directamente
+            sfr = db.prepare('SELECT sf.id FROM splitter_fibers sf JOIN splitters s ON s.id=sf.splitter_id JOIN manga_splitters ms ON ms.name=s.name WHERE ms.id=? AND sf.output_number=?').get(mf.splitter_id, mf.splitter_output);
+          }
+          if (sfr) {
+            db.prepare('UPDATE splitter_fibers SET fiber_uid=? WHERE id=?').run(mf.fiber_uid, sfr.id);
+          }
+        }
+        // Tambien sync splitter_fibers (standalone) - legacy
         var sf = db.prepare('SELECT * FROM splitter_fibers WHERE id=?').get(mfId);
         if (!sf && mf) {
           // Try finding splitter_fiber by matching manga_fiber properties
@@ -880,7 +891,26 @@ function syncPowerState() {
     }
   }
   
-  // 5. Sincronizar cable_fibers.active_power por fiber_uid
+  // 5.5 Sync splitter_fibers UIDs from manga_fibers (via manga_splitters name match)
+  var mfWithUID = db.prepare('SELECT mf.id, mf.fiber_uid, mf.splitter_output, ms.name as ms_name FROM manga_fibers mf JOIN manga_splitters ms ON ms.id=mf.splitter_id WHERE mf.fiber_uid IS NOT NULL').all();
+  for (var mu of mfWithUID) {
+    var sfMatch = db.prepare('SELECT sf.id FROM splitter_fibers sf JOIN splitters s ON s.name=? WHERE sf.output_number=?').all(mu.ms_name, mu.splitter_output);
+    for (var sm of sfMatch) {
+      db.prepare('UPDATE splitter_fibers SET fiber_uid=? WHERE id=? AND (fiber_uid IS NULL OR fiber_uid!=?)').run(mu.fiber_uid, sm.id, mu.fiber_uid);
+    }
+  }
+  
+  // 5.6 Re-propagar power a splitter_fibers con los nuevos UIDs
+  var poweredUIDs = {};
+  var poweredCFs = db.prepare('SELECT cf.fiber_uid, cf.power_level FROM cable_fibers cf WHERE cf.active_power=1 AND cf.fiber_uid IS NOT NULL').all();
+  for (var pcf of poweredCFs) {
+    if (!poweredUIDs[pcf.fiber_uid]) {
+      poweredUIDs[pcf.fiber_uid] = true;
+      db.prepare('UPDATE splitter_fibers SET active_power=1, power_level=? WHERE fiber_uid=? AND active_power=0').run(pcf.power_level, pcf.fiber_uid);
+    }
+  }
+  
+  // 6. Sincronizar cable_fibers.active_power por fiber_uid
   // Primero limpiar todo
   db.prepare('UPDATE cable_fibers SET active_power=0, power_level=NULL').run();
   
