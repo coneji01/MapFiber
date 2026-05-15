@@ -5419,15 +5419,6 @@ async function openMangaVisualizer(mangaId, entityType) {
     }
   }
   
-  // ⭐ Re-fetch fibers after server-side power sync (manga_fibers.active_power = 1)
-  try {
-    var freshFibers = await api('/mangas/' + mangaId + '/fibers');
-    if (Array.isArray(freshFibers) && freshFibers.length > 0) {
-      fibers = freshFibers;
-      console.log('[POWER-REFETCH] Refetched', freshFibers.length, 'fibers after power sync');
-    }
-  } catch(e) {}
-  
   // ====== DETECT: PASS-THROUGH vs TERMINATION for each cable point ======
   // For each cable connection point, check if the cable has points both before and after this manga
   // If yes → pass-through (IN + OUT). If no → termination (only one side).
