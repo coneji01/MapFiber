@@ -5356,6 +5356,38 @@ async function openMangaVisualizer(mangaId, entityType) {
     console.warn('No splices for manga', mangaId);
   }
   
+  // ⭐ Cleanup: limpiar active_power de manga_fibers cuyo cable_point no tiene potencia
+  // El server endpoint /mangas/:id/fibers setea active_power=1 basado en
+  // fiber_connections.active_power (que no respeta cortes de fusion).
+  // Aqui corregimos: si el cable_point no esta en _activePowerMap, la fibra no tiene potencia.
+  if (Array.isArray(mangaSplices) && typeof _activePowerMap !== 'undefined') {
+    for (var sClean of mangaSplices) {
+      var scId = null, scPort = null, smfId = null;
+      if (sClean.fiber_a_type === 'cable_fiber' && sClean.fiber_b_type === 'manga_fiber') {
+        scId = sClean.fiber_a_id; scPort = sClean.fiber_a_port; smfId = sClean.fiber_b_id;
+      } else if (sClean.fiber_a_type === 'manga_fiber' && sClean.fiber_b_type === 'cable_fiber') {
+        scId = sClean.fiber_b_id; scPort = sClean.fiber_b_port; smfId = sClean.fiber_a_id;
+      }
+      if (scId && smfId && (!_activePowerMap[scId] || !_activePowerMap[scId][scPort])) {
+        var mfClean = fibers.find(function(f) { return f.id == smfId; });
+        if (mfClean && mfClean.active_power) {
+          console.log('[POWER-CLEANUP] Clearing mf.id=' + smfId + ' active_power (cp.id=' + scId + ' fiber=' + scPort + ' no tiene potencia)');
+          mfClean.active_power = 0;
+          mfClean.power_level = null;
+          // Also clear all splitter outputs
+          if (mfClean.splitter_id) {
+            fibers.forEach(function(fo) {
+              if (fo.splitter_id == mfClean.splitter_id && fo.splitter_output > 0) {
+                fo.active_power = 0;
+                fo.power_level = null;
+              }
+            });
+          }
+        }
+      }
+    }
+  }
+  
   // ====== DETECT: PASS-THROUGH vs TERMINATION for each cable point ======
   // For each cable connection point, check if the cable has points both before and after this manga
   // If yes → pass-through (IN + OUT). If no → termination (only one side).
