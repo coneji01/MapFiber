@@ -1572,10 +1572,15 @@ app.post('/api/cables/:id/points', (req, res) => {
         updateSeq.run(pi + 1, p.lat, p.lng, matched.id);
         updatedIds[matched.id] = true;
         updatesCount++;
+        // ⭐ Expandir a cable_points por fibra (si aun no existen)
+        expandirFibras(cableId, matched.id, p, pi + 1);
       } else {
         // New element point
         insert.run(cableId, pi + 1, p.lat, p.lng, p.element_type, p.element_id);
         insertsCount++;
+        // Obtener el ID del nuevo cable_point y expandir
+        var nuevoId = db.prepare('SELECT MAX(id) as mid FROM cable_points WHERE cable_id=? AND sequence=? AND element_type=? AND element_id=?').get(cableId, pi + 1, p.element_type, p.element_id);
+        if (nuevoId) expandirFibras(cableId, nuevoId.mid, p, pi + 1);
       }
     } else {
       // Pure routing point - always insert (old ones were deleted above)
@@ -1587,6 +1592,53 @@ app.post('/api/cables/:id/points', (req, res) => {
   console.log('[CABLE POINTS] Cable #' + cableId + ': ' + updatesCount + ' updated, ' + insertsCount + ' inserted');
   res.json({ message: 'Puntos guardados', updated: updatesCount, inserted: insertsCount });
 });
+
+// ⭐ Función: expandir un cable_point de elemento en N cable_points (uno por fibra)
+function expandirFibras(cableId, puntoId, pointData, sequence) {
+  if (!pointData.element_type || !pointData.element_id) return;
+  var cable = db.prepare('SELECT id, name, fiber_count FROM cables WHERE id=?').get(cableId);
+  if (!cable || !cable.fiber_count) return;
+  var N = cable.fiber_count;
+  if (N <= 1) return;
+  
+  // El cable_point original ya existe para fibra 1. Crear para fibras 2..N
+  for (var fib = 2; fib <= N; fib++) {
+    var seq = sequence * 100 + fib; // secuencia unica despues del punto original
+    var existente = db.prepare([
+      'SELECT id FROM cable_points',
+      'WHERE cable_id=? AND element_type=? AND element_id=? AND fiber_number=?'
+    ].join(' ')).get(cableId, pointData.element_type, pointData.element_id, fib);
+    if (existente) continue; // ya existe
+    
+    var r = db.prepare([
+      'INSERT INTO cable_points',
+      '(cable_id, lat, lng, sequence, element_type, element_id, fiber_number)',
+      'VALUES (?, ?, ?, ?, ?, ?, ?)'
+    ].join(' ')).run(cableId, pointData.lat, pointData.lng, seq, pointData.element_type, pointData.element_id, fib);
+  }
+  
+  // Asignar fiber_uid y fiber_seq a TODOS los cable_points de este elemento en este cable
+  var pts = db.prepare([
+    'SELECT cp.id, cp.fiber_number',
+    'FROM cable_points cp',
+    'WHERE cp.cable_id=? AND cp.element_type=? AND cp.element_id=?',
+    'AND cp.fiber_number IS NOT NULL',
+    'ORDER BY cp.fiber_number'
+  ].join(' ')).all(cableId, pointData.element_type, pointData.element_id);
+  
+  for (var pti = 0; pti < pts.length; pti++) {
+    var fibN = pts[pti].fiber_number;
+    // Calcular fiber_seq: contar cable_points previos de esta fibra en todo el cable
+    var prevCount = db.prepare([
+      'SELECT COUNT(*) as cnt FROM cable_points',
+      'WHERE cable_id=? AND fiber_number=? AND id < ?'
+    ].join(' ')).get(cableId, fibN, pts[pti].id);
+    var seqVal = prevCount ? prevCount.cnt : 0;
+    var cableName = (cable.name || 'cable-' + cableId).replace(/\s+/g, '-');
+    var uid = cableName + '-fib-' + fibN + '-seq-' + seqVal;
+    db.prepare('UPDATE cable_points SET fiber_uid=?, fiber_seq=? WHERE id=?').run(uid, seqVal, pts[pti].id);
+  }
+}
 
 // ========== Fiber Connections ==========
 app.get('/api/fibers', (req, res) => {
