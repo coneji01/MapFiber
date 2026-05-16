@@ -7,3 +7,4 @@ database.sqlite
 .env
 smartolt-api.json
 graphify-out/
+ftth.db
